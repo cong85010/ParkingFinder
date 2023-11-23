@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   StyleSheet,
   Dimensions,
   SafeAreaView,
   KeyboardAvoidingView,
   AppRegistry,
+  Alert,
 } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 import * as Location from "expo-location";
@@ -18,29 +19,58 @@ import {
   Icon,
   Switch,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native-ui-lib";
 import { Picker } from "react-native-ui-lib/src/components/picker";
-
+import {
+  MagnifyingGlassIcon,
+  MapPinIcon,
+  XCircleIcon,
+} from "react-native-heroicons/solid";
 Colors.loadColors({
   primary: "#00bfff",
   secondary: "#d9d9d9",
   mainbg: "#f5f6fa",
   sidebg: "#ffffff",
+  $textWhite: "#ffffff",
+  $textPrimary: "#00bfff",
 });
 
 const GooglePlacesInput = ({ onPress }) => {
+  const ref = useRef();
+
   return (
     <GooglePlacesAutocomplete
+    ref={ref}
       styles={{
         zIndex: 999,
+        textInput: {
+          paddingHorizontal: 30,
+        },
       }}
+      renderLeftButton={() => (
+        <MagnifyingGlassIcon
+          style={{ position: "relative", top: 10, left: 27, zIndex: 999 }}
+          color={Colors.$textNeutral}
+        />
+      )}
+      renderRightButton={() => (
+        <TouchableOpacity
+          style={{ position: "relative", top: 10, right: 27, zIndex: 999 }}
+          onPress={() => ref.current.clear()}
+        >
+          <XCircleIcon color={Colors.$textNeutral} />
+        </TouchableOpacity>
+      )}
+      onFail={() => Alert.alert("Lỗi", "Hệ thống quá tải, thử lại sau!!!")}
       fetchDetails={true}
       placeholder="Bạn muốn đỗ xe ở đâu?"
       onPress={onPress}
       query={{
         key: GOOGLE_MAPS_API_KEY,
         language: "en",
+        types: "parking",
       }}
     />
   );
@@ -73,6 +103,8 @@ export default function App() {
 
         let location = await Location.getCurrentPositionAsync({});
         console.log("location", location);
+        location.coords.latitude = 10.835724039657979;
+        location.coords.longitude = 106.68847443564913;
         setRegion({
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
@@ -81,27 +113,35 @@ export default function App() {
         });
 
         // Fetch nearby places using Google Places API nearbysearch
-        const apiKey = GOOGLE_MAPS_API_KEY; // Replace with your Google Maps API key
-        const response = await fetch(
-          `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.coords.latitude},${location.coords.longitude}&radius=${radius}&type=parking&key=${apiKey}`
-        );
-        const result = await response.json();
+        console.log("Loadinggg");
+        // const apiKey = GOOGLE_MAPS_API_KEY; // Replace with your Google Maps API key
+        // const response = await fetch(
+        //   `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.coords.latitude},${location.coords.longitude}&radius=${radius}&type=parking&key=${apiKey}`
+        // );
+        // const result = await response.json();
 
-        if (result.status === "OK" && result.results.length > 0) {
-          setPlaces(result.results);
-        }
+        // if (result.status === "OK" && result.results.length > 0) {
+        //   setPlaces(result.results);
+        // }
       } catch (error) {
         console.error(error);
       }
     })();
-  }, []);
+  }, [radius]);
 
   const handleMarkerPress = (coordinate, position) => {
+    console.log("coordinate", coordinate);
+    if (!coordinate) return;
     setDestination(coordinate);
     setMoveing(true);
   };
 
   const onPressSearch = (data, details) => {
+    if (
+      details?.geometry?.location?.lat === undefined ||
+      details?.geometry?.location?.lng === undefined
+    )
+      return;
     setDestination({
       latitude: details?.geometry?.location?.lat,
       longitude: details?.geometry?.location?.lng,
@@ -111,9 +151,9 @@ export default function App() {
 
   const radiusOptions = [
     { label: "500m", value: 500 },
+    { label: "1Km", value: 1000 },
     { label: "2Km", value: 2000 },
     { label: "5Km", value: 5000 },
-    { label: "10Km", value: 10000 },
   ];
 
   return (
@@ -122,14 +162,13 @@ export default function App() {
         style={{
           zIndex: 99,
           width: "100%",
-          paddingHorizontal: 20,
-          height: 100,
+          height: 80,
           backgroundColor: "#00bfff",
           paddingTop: 50,
         }}
       >
         <View
-          style={{ position: "absolute", width: "100%", top: 40, left: 20 }}
+          style={{ position: "absolute", width: "100%", top: 90, left: 0 }}
         >
           <GooglePlacesInput onPress={onPressSearch} />
         </View>
@@ -188,11 +227,8 @@ export default function App() {
           style={{
             position: "absolute",
             zIndex: 99,
-            bottom: 0,
-            left: 0,
-            width: "100%",
-            height: 50,
-            backgroundColor: Colors.primary,
+            bottom: 30,
+            right: 0,
             paddingHorizontal: 20,
           }}
         >
@@ -207,13 +243,25 @@ export default function App() {
               migrateDialog: true,
               dialogProps: { bottom: true, width: "100%", height: "45%" },
             }}
+            topBarProps={{title: 'Languages'}}
+            renderCustomDialogHeader={({onDone, onCancel}) => (
+              <View padding-s5 row spread>
+                <Text text70>
+                  Bán kính khu vực:
+                </Text>
+              </View>
+            )}
             renderPicker={(_value, label) => {
               return (
-                <View row>
-                  <Loat />
-                  <Text $textDefault text80>
-                    {label} Posts
+                <View row center>
+                  <Text $textDanger text80>
+                    {label}
                   </Text>
+                  <MapPinIcon
+                    height={33}
+                    width={33}
+                    color={Colors.$textDanger}
+                  />
                 </View>
               );
             }}
