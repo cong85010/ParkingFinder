@@ -1,17 +1,33 @@
 import React, { useEffect, useState } from "react";
 import {
-  View,
   StyleSheet,
   Dimensions,
-  Text,
   SafeAreaView,
   KeyboardAvoidingView,
+  AppRegistry,
 } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 import * as Location from "expo-location";
 import { GOOGLE_MAPS_API_KEY } from "./secrets";
 import MapViewDirections from "react-native-maps-directions";
 import { GooglePlacesAutocomplete } from "react-native-google-places-autocomplete";
+import {
+  Badge,
+  Button,
+  Colors,
+  Icon,
+  Switch,
+  Text,
+  View,
+} from "react-native-ui-lib";
+import { Picker } from "react-native-ui-lib/src/components/picker";
+
+Colors.loadColors({
+  primary: "#00bfff",
+  secondary: "#d9d9d9",
+  mainbg: "#f5f6fa",
+  sidebg: "#ffffff",
+});
 
 const GooglePlacesInput = ({ onPress }) => {
   return (
@@ -56,6 +72,7 @@ export default function App() {
         }
 
         let location = await Location.getCurrentPositionAsync({});
+        console.log("location", location);
         setRegion({
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
@@ -92,35 +109,29 @@ export default function App() {
     setMoveing(true);
   };
 
+  const radiusOptions = [
+    { label: "500m", value: 500 },
+    { label: "2Km", value: 2000 },
+    { label: "5Km", value: 5000 },
+    { label: "10Km", value: 10000 },
+  ];
+
   return (
     <View style={styles.container}>
       <View
         style={{
-          position: "absolute",
-          top: 0,
           zIndex: 99,
           width: "100%",
           paddingHorizontal: 20,
-          flex: 0.5,
           height: 100,
           backgroundColor: "#00bfff",
+          paddingTop: 50,
         }}
       >
-        <View style={{ position: "relative" }}>
+        <View
+          style={{ position: "absolute", width: "100%", top: 40, left: 20 }}
+        >
           <GooglePlacesInput onPress={onPressSearch} />
-          <View style={{ position: "relative" }}>
-            <Text
-              style={{
-                position: "absolute",
-                top: 10,
-                left: 10,
-                color: "#fff",
-                fontSize: 18,
-              }}
-            >
-              Bán kính: {radius}m
-            </Text>
-          </View>
         </View>
       </View>
       <SafeAreaView style={{ width: "100%", flex: 1 }}>
@@ -172,6 +183,46 @@ export default function App() {
             </MapView>
           )}
         </KeyboardAvoidingView>
+        <View
+          row
+          style={{
+            position: "absolute",
+            zIndex: 99,
+            bottom: 0,
+            left: 0,
+            width: "100%",
+            height: 50,
+            backgroundColor: Colors.primary,
+            paddingHorizontal: 20,
+          }}
+        >
+          <Picker
+            enableModalBlur={false}
+            useDialog
+            value={radius}
+            onChange={(value) => setRadius(value)}
+            label="Bán kính"
+            placeholder="Chọn bán kính"
+            customPickerProps={{
+              migrateDialog: true,
+              dialogProps: { bottom: true, width: "100%", height: "45%" },
+            }}
+            renderPicker={(_value, label) => {
+              return (
+                <View row>
+                  <Loat />
+                  <Text $textDefault text80>
+                    {label} Posts
+                  </Text>
+                </View>
+              );
+            }}
+          >
+            {radiusOptions.map((radius) => (
+              <Picker.Item key={radius.value} {...radius} />
+            ))}
+          </Picker>
+        </View>
       </SafeAreaView>
     </View>
   );
@@ -189,3 +240,5 @@ const styles = StyleSheet.create({
     height: Dimensions.get("window").height + 50,
   },
 });
+
+AppRegistry.registerComponent("main", () => App);
