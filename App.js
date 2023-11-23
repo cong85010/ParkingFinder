@@ -24,10 +24,17 @@ import {
 } from "react-native-ui-lib";
 import { Picker } from "react-native-ui-lib/src/components/picker";
 import {
+  Bars3Icon,
+  BellAlertIcon,
+  BellIcon,
+  LifebuoyIcon,
   MagnifyingGlassIcon,
   MapPinIcon,
   XCircleIcon,
 } from "react-native-heroicons/solid";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { NavigationContainer } from "@react-navigation/native";
+
 Colors.loadColors({
   primary: "#00bfff",
   secondary: "#d9d9d9",
@@ -42,7 +49,7 @@ const GooglePlacesInput = ({ onPress }) => {
 
   return (
     <GooglePlacesAutocomplete
-    ref={ref}
+      ref={ref}
       styles={{
         zIndex: 999,
         textInput: {
@@ -76,7 +83,7 @@ const GooglePlacesInput = ({ onPress }) => {
   );
 };
 
-export default function App() {
+export function MapScreen() {
   const [region, setRegion] = useState({
     latitude: 0,
     longitude: 0,
@@ -149,6 +156,17 @@ export default function App() {
     setMoveing(true);
   };
 
+  const handleCurrent = async () => {
+    let location = await Location.getCurrentPositionAsync({});
+    console.log("location", location);
+    setRegion((prv) => ({
+      latitude: location.coords.latitude,
+      longitude: location.coords.longitude,
+      latitudeDelta: 0.0922,
+      longitudeDelta: 0.0421,
+    }));
+  };
+
   const radiusOptions = [
     { label: "500m", value: 500 },
     { label: "1Km", value: 1000 },
@@ -163,13 +181,22 @@ export default function App() {
           zIndex: 99,
           width: "100%",
           height: 80,
-          backgroundColor: "#00bfff",
-          paddingTop: 50,
+          backgroundColor: Colors.primary,
+          paddingTop: 40,
         }}
       >
-        <View
-          style={{ position: "absolute", width: "100%", top: 90, left: 0 }}
-        >
+        <View row spread paddingH-10>
+          <TouchableOpacity>
+            <Bars3Icon color={Colors.$textWhite} />
+          </TouchableOpacity>
+          <Text text60 $textWhite>
+            Parking
+          </Text>
+          <TouchableOpacity>
+            <BellIcon color={Colors.$textWhite} />
+          </TouchableOpacity>
+        </View>
+        <View style={{ position: "absolute", width: "100%", top: 90, left: 0 }}>
           <GooglePlacesInput onPress={onPressSearch} />
         </View>
       </View>
@@ -227,6 +254,20 @@ export default function App() {
           style={{
             position: "absolute",
             zIndex: 99,
+            bottom: 70,
+            right: 0,
+            paddingHorizontal: 20,
+          }}
+        >
+          <TouchableOpacity onPress={handleCurrent}>
+            <LifebuoyIcon color={Colors.$textPrimary} />
+          </TouchableOpacity>
+        </View>
+        <View
+          row
+          style={{
+            position: "absolute",
+            zIndex: 99,
             bottom: 30,
             right: 0,
             paddingHorizontal: 20,
@@ -243,12 +284,10 @@ export default function App() {
               migrateDialog: true,
               dialogProps: { bottom: true, width: "100%", height: "45%" },
             }}
-            topBarProps={{title: 'Languages'}}
-            renderCustomDialogHeader={({onDone, onCancel}) => (
+            topBarProps={{ title: "Languages" }}
+            renderCustomDialogHeader={({ onDone, onCancel }) => (
               <View padding-s5 row spread>
-                <Text text70>
-                  Bán kính khu vực:
-                </Text>
+                <Text text70>Bán kính khu vực:</Text>
               </View>
             )}
             renderPicker={(_value, label) => {
@@ -257,11 +296,7 @@ export default function App() {
                   <Text $textDanger text80>
                     {label}
                   </Text>
-                  <MapPinIcon
-                    height={33}
-                    width={33}
-                    color={Colors.$textDanger}
-                  />
+                  <MapPinIcon color={Colors.$textDanger} />
                 </View>
               );
             }}
@@ -288,5 +323,21 @@ const styles = StyleSheet.create({
     height: Dimensions.get("window").height + 50,
   },
 });
+const Stack = createNativeStackNavigator();
 
+export default App = () => {
+  return (
+    <NavigationContainer style={{ flex: 1 }}>
+      <Stack.Navigator>
+        <Stack.Screen
+          options={{
+            headerShown: false,
+          }}
+          name="Home"
+          component={MapScreen}
+        />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+};
 AppRegistry.registerComponent("main", () => App);
