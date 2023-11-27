@@ -34,6 +34,7 @@ import {
 } from "react-native-heroicons/solid";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { NavigationContainer } from "@react-navigation/native";
+import WebView from "react-native-webview";
 
 Colors.loadColors({
   primary: "#00bfff",
@@ -110,6 +111,7 @@ export function MapScreen() {
 
         let location = await Location.getCurrentPositionAsync({});
         console.log("location", location);
+        console.log("radius", radius);
         location.coords.latitude = 10.835724039657979;
         location.coords.longitude = 106.68847443564913;
         setRegion({
@@ -120,12 +122,13 @@ export function MapScreen() {
         });
 
         // Fetch nearby places using Google Places API nearbysearch
-        console.log("Loadinggg");
+        // console.log("Loadinggg");
         // const apiKey = GOOGLE_MAPS_API_KEY; // Replace with your Google Maps API key
         // const response = await fetch(
         //   `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.coords.latitude},${location.coords.longitude}&radius=${radius}&type=parking&key=${apiKey}`
         // );
         // const result = await response.json();
+        // console.log("finished", result.results);
 
         // if (result.status === "OK" && result.results.length > 0) {
         //   setPlaces(result.results);
@@ -174,6 +177,76 @@ export function MapScreen() {
     { label: "5Km", value: 5000 },
   ];
 
+  const htmlContent = `
+  <!DOCTYPE html>
+<html>
+
+<head>
+   <meta charset="utf-8">
+   <meta name="viewport" content="width=device-width">
+   <title>JS Bin</title>
+   <style>
+      body {
+         width: 100%;
+         height: 100%;
+         position: absolute;
+         margin: 0px;
+         padding: 0px;
+         overflow: hidden;
+      }
+
+      #mapContainer {
+         position: absolute;
+         top: 0;
+         bottom: 0;
+         width: 100%;
+         height: 100%;
+      }
+   </style>
+</head>
+
+<body>
+   <script type="text/javascript" src="https://js.api.here.com/v3/3.1/mapsjs-core.js"></script>
+   <script type="text/javascript" src="https://js.api.here.com/v3/3.1/mapsjs-service.js"></script>
+   <script type="text/javascript" src="https://js.api.here.com/v3/3.1/mapsjs-mapevents.js"></script>
+   <div id="mapContainer"></div>
+
+   <script>
+      function loadMap() {
+         var platform = new H.service.Platform({
+            'apikey': 'ZjnsjW7xLZvZaRrk0hJWyc-Wgj66A6zPGXTQ0Qdi5-M'
+         });
+
+         var defaultLayers = platform.createDefaultLayers();
+
+         var map = new H.Map(
+            document.getElementById('mapContainer'),
+            defaultLayers.vector.normal.map, {
+            zoom: 11,
+            center: {
+               lat: 53.349805,
+               lng: -6.260310
+            }
+         });
+
+         const behavior = new H.mapevents.Behavior(new H.mapevents.MapEvents(map));
+
+         // Enable dynamic resizing of the map, based on the current size of the enclosing cntainer
+         window.addEventListener('resize', () => map.getViewPort().resize());
+
+
+      }
+
+      document.addEventListener('DOMContentLoaded', function () {
+         console.log('DOM is ready');
+         loadMap();
+      });
+   </script>
+</body>
+
+</html>
+  `;
+
   return (
     <View style={styles.container}>
       <View
@@ -201,8 +274,16 @@ export function MapScreen() {
         </View>
       </View>
       <SafeAreaView style={{ width: "100%", flex: 1 }}>
-        <KeyboardAvoidingView behavior="padding" enabled>
-          {region.latitude !== 0 && (
+        <WebView
+          source={{ html: htmlContent }}
+          // source={{ uri: "http://192.168.1.118:5501/index.html" }}
+          style={{
+            width: "100%",
+            height: "100%",
+          }}
+          javaScriptEnabled={true}
+        />
+        {/* {region.latitude !== 0 && (
             <MapView
               style={styles.map}
               region={region}
@@ -247,8 +328,7 @@ export function MapScreen() {
                 anchor={{ x: 0.5, y: 0.5 }}
               />
             </MapView>
-          )}
-        </KeyboardAvoidingView>
+          )} */}
         <View
           row
           style={{
