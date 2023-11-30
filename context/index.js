@@ -1,5 +1,3 @@
 import { createContext } from "react";
 
-export const AuthContext = createContext({
-  isLandscape: true,
-});
+export const AuthContext = createContext({});

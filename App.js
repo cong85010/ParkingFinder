@@ -23,7 +23,9 @@ import {
   Badge,
   Button,
   Colors,
+  Dialog,
   Icon,
+  PanningProvider,
   Switch,
   Text,
   TouchableOpacity,
@@ -36,12 +38,17 @@ import {
   BellAlertIcon,
   BellIcon,
   ChevronLeftIcon,
+  ClockIcon,
   HomeIcon,
   HomeModernIcon,
   LifebuoyIcon,
+  LockClosedIcon,
+  LockOpenIcon,
   MagnifyingGlassIcon,
+  MapIcon,
   MapPinIcon,
   NewspaperIcon,
+  StarIcon,
   UserIcon,
   XCircleIcon,
 } from "react-native-heroicons/solid";
@@ -58,6 +65,7 @@ import ProfileScreen from "./screens/ProfileScreen";
 import NotificationsScreen from "./screens/Notification";
 import Loading from "./screens/Loading";
 import { AuthContext } from "./context";
+// import MapScreen from "./screens/MapScreen";
 
 Colors.loadColors({
   primary: "#00bfff",
@@ -70,7 +78,7 @@ Colors.loadColors({
 
 export function MapScreen({ navigation }) {
   const [region, setRegion] = useState({
-    latitude: 0,
+    latitude: -1,
     longitude: 0,
     latitudeDelta: 0.0922,
     longitudeDelta: 0.0421,
@@ -82,7 +90,10 @@ export function MapScreen({ navigation }) {
     latitude: 0,
     longitude: 0,
   });
+  const [reload, setReload] = useState(false);
   const [moveing, setMoveing] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
   const [inputSearch, setInputSearch] = useState("");
   const { currentUser } = useContext(AuthContext);
   function clearInput() {
@@ -91,62 +102,78 @@ export function MapScreen({ navigation }) {
 
   useEffect(() => {
     if (!currentUser) {
+      console.log("User is not logged in");
       navigation.navigate("LoginScreen");
     }
   }, [currentUser]);
 
   useEffect(() => {
-    (async () => {
+    const initData = async () => {
       try {
+        setLoading(true);
         let { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") {
           console.error("Permission to access location was denied");
           return;
         }
 
+        console.log("requestForegroundPermissionsAsync", status);
         let location = await Location.getCurrentPositionAsync({});
+        console.log("location", location);
         location.coords.latitude = 10.834593012911455;
         location.coords.longitude = 106.68884075965167;
-        function writeUserData(userId) {
-          set(ref(db, "users/" + userId), {
-            region: {
-              lat: location.coords.latitude,
-              lng: location.coords.longitude,
-              radius,
-            },
-          });
-        }
-
-        writeUserData("190002");
-
-        // Fetch nearby places using Google Places API nearbysearch
-        console.log("Loadinggg");
-        const apiKey = GOOGLE_MAPS_API_KEY; // Replace with your Google Maps API key
-        const response = await fetch(
-          `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.coords.latitude},${location.coords.longitude}&radius=${radius}&type=parking&key=${apiKey}`
-        );
-        const result = await response.json();
-
-        if (result.status === "OK" && result.results.length > 0) {
-          setPlaces(result.results);
-        }
         setRegion({
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
           latitudeDelta: 0.0922,
           longitudeDelta: 0.0421,
         });
+        // function writeUserData(userId) {
+        //   set(ref(db, "users/" + userId), {
+        //     region: {
+        //       lat: location.coords.latitude,
+        //       lng: location.coords.longitude,
+        //       radius,
+        //     },
+        //   });
+        // }
+
+        // writeUserData("190002");
+
+        // Fetch nearby places using Google Places API nearbysearch
+        // console.log("Loadinggg");
+        // const apiKey = GOOGLE_MAPS_API_KEY; // Replace with your Google Maps API key
+        // const response = await fetch(
+        //   `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.coords.latitude},${location.coords.longitude}&radius=${radius}&type=parking&key=${apiKey}`
+        // );
+        // const result = await response.json();
+
+        // if (result.status === "OK" && result.results.length > 0) {
+        //   setPlaces(result.results);
+        // }
+        // console.log("result", result);
+        setLoading(false);
       } catch (error) {
         console.error(error);
+        setLoading(false);
+        setRegion({
+          latitude: 0,
+          longitude: 0,
+          latitudeDelta: 0.0922,
+          longitudeDelta: 0.0421,
+        });
       }
-    })();
-  }, [radius]);
+    };
 
-  const handleMarkerPress = (coordinate, position) => {
+    initData();
+  }, [radius, reload]);
+
+  const handleMarkerPress = (coordinate, place) => {
     console.log("coordinate", coordinate);
-    if (!coordinate) return;
-    setDestination(coordinate);
-    setMoveing(true);
+    if (!coordinate || moveing) return;
+    setIsVisible(true);
+    setDestination({ ...coordinate, ...place });
+    // setMoveing(true);
   };
 
   const handleSubmitEditing = ({
@@ -164,6 +191,7 @@ export function MapScreen({ navigation }) {
     // });
     setMoveing(true);
   };
+  console.log("Region", region);
 
   const handleCurrent = async () => {
     let location = await Location.getCurrentPositionAsync({});
@@ -174,6 +202,24 @@ export function MapScreen({ navigation }) {
       latitudeDelta: 0.0922,
       longitudeDelta: 0.0421,
     }));
+  };
+
+  const handleMoveToPark = async () => {
+    setIsVisible(false);
+    setMoveing(true);
+  };
+
+  const handleFinishPark = async () => {
+    setMoveing(false);
+  };
+
+  const handleCancelPark = async () => {
+    setDestination({});
+    setMoveing(false);
+  };
+
+  const handleReload = async () => {
+    setReload((prv) => !prv);
   };
 
   const radiusOptions = [
@@ -242,7 +288,15 @@ export function MapScreen({ navigation }) {
         </View>
       </View>
       <SafeAreaView style={{ width: "100%", flex: 1 }}>
-        {region.latitude !== 0 && (
+        {region.latitude === 0 ? (
+          <View center flex>
+            <Button
+              onPress={handleReload}
+              backgroundColor={Colors.$outlineWarning}
+              label="Tải lại bản đồ"
+            ></Button>
+          </View>
+        ) : (
           <MapView
             style={styles.map}
             region={region}
@@ -259,6 +313,20 @@ export function MapScreen({ navigation }) {
               />
             ) : null}
 
+            <Marker
+              onPress={(e) => handleMarkerPress(e.nativeEvent.coordinate)}
+              coordinate={{
+                latitude: 10.831743253209897,
+                longitude: 106.68665889081245,
+              }}
+              title="Bai do xe test"
+              description="Bai do xe test"
+              icon={
+                true
+                  ? require("./assets/parking.png")
+                  : require("./assets/no-parking.png")
+              }
+            />
             {places.map((place, index) => (
               <Marker
                 key={index}
@@ -302,6 +370,39 @@ export function MapScreen({ navigation }) {
             <LifebuoyIcon color={Colors.$textPrimary} />
           </TouchableOpacity>
         </View>
+        {moveing ? (
+          <>
+            <Button
+              marginT-20
+              style={{
+                position: "absolute",
+                zIndex: 99,
+                bottom: 40,
+                left: 0,
+                width: 70
+              }}
+              label="Hủy"
+              labelStyle={{ color: Colors.$textDanger }}
+              backgroundColor={Colors.$backgroundDangerLight}
+              onPress={handleCancelPark}
+            />
+            <Button
+              style={{
+                position: "absolute",
+                zIndex: 99,
+                bottom: 40,
+                left: 80,
+                paddingHorizontal: 20,
+                width: 200,
+              }}
+              marginT-20
+              label="Đã đỗ xe"
+              backgroundColor={Colors.primary}
+              onPress={handleFinishPark}
+            />
+          </>
+        ) : null}
+
         <View
           row
           style={{
@@ -345,7 +446,68 @@ export function MapScreen({ navigation }) {
             ))}
           </Picker>
         </View>
+        <Loading isVisible={loading} text="Loading" />
       </SafeAreaView>
+      <Dialog
+        visible={isVisible}
+        onDismiss={() => setIsVisible(false)}
+        onDialogDismissed={() => setIsVisible(false)}
+        panDirection={PanningProvider.Directions.DOWN}
+        useSafeArea
+        bottom={true}
+        height={300}
+        containerStyle={{
+          zIndex: 999,
+          backgroundColor: Colors.$textWhite,
+          width: Dimensions.get("window").width,
+          position: "relative",
+          left: -20,
+          padding: 20,
+          borderTopLeftRadius: 20,
+          borderTopRightRadius: 20,
+        }}
+      >
+        <Text text60>Đỗ xe tại {destination?.name || "Chưa xác định"}</Text>
+        <View row centerV marginT-10 gap-5>
+          <StarIcon color={Colors.$outlineWarning} />
+          <Text text80R>
+            Đánh giá: {destination?.rating || "0"} sao | (
+            {destination.user_ratings_total} người){" "}
+          </Text>
+        </View>
+        <View row centerV marginT-10 gap-5 paddingR-20>
+          <MapPinIcon color={Colors.$backgroundDangerHeavy} />
+          <Text text80R>Địa chỉ: {destination?.vicinity || "Trống"} </Text>
+        </View>
+        <View row centerV marginT-10 gap-5>
+          {destination?.status === "OK" ? (
+            <LockOpenIcon color={Colors.$iconSuccess} />
+          ) : (
+            <LockClosedIcon color={Colors.$iconDanger} />
+          )}
+          <Text text80R>
+            Trạng thái: {destination?.status === "OKE" ? "Mở cửa" : "Đóng cửa"}{" "}
+          </Text>
+        </View>
+        <View row centerV marginT-10 gap-5>
+          <ClockIcon color={Colors.$textNeutralHeavy} />
+          <Text text80R>
+            Thời gian: {destination?.timeStart || "07:00"} :{" "}
+            {destination?.timeeND || "23:00"}{" "}
+          </Text>
+        </View>
+
+        <View row centerV marginT-10 gap-5>
+          <NewspaperIcon color={Colors.$outlinePrimary} />
+          <Text text80R>Giá: {destination?.price || "0"} VNĐ </Text>
+        </View>
+        <Button
+          marginT-20
+          label="Đến bãi đỗ xe"
+          backgroundColor={Colors.primary}
+          onPress={handleMoveToPark}
+        />
+      </Dialog>
     </View>
   );
 }
