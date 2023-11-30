@@ -96,6 +96,8 @@ export function MapScreen({ navigation }) {
   const [isVisible, setIsVisible] = useState(false);
   const [inputSearch, setInputSearch] = useState("");
   const { currentUser } = useContext(AuthContext);
+  const mapRef = useRef(null);
+
   function clearInput() {
     setInputSearch("");
   }
@@ -120,8 +122,6 @@ export function MapScreen({ navigation }) {
         console.log("requestForegroundPermissionsAsync", status);
         let location = await Location.getCurrentPositionAsync({});
         console.log("location", location);
-        location.coords.latitude = 10.834593012911455;
-        location.coords.longitude = 106.68884075965167;
         setRegion({
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
@@ -195,13 +195,23 @@ export function MapScreen({ navigation }) {
 
   const handleCurrent = async () => {
     let location = await Location.getCurrentPositionAsync({});
-    console.log("location", location);
-    setRegion((prv) => ({
-      latitude: location.coords.latitude,
-      longitude: location.coords.longitude,
+    console.log("mapRef.current", mapRef.current);
+    const { latitude, longitude } = location.coords;
+
+    mapRef.current.animateCamera({
+      zoom: 17,
+      center: {
+        latitude,
+        longitude,
+      },
+    });
+
+    setRegion({
+      latitude,
+        longitude,
       latitudeDelta: 0.0922,
       longitudeDelta: 0.0421,
-    }));
+    });
   };
 
   const handleMoveToPark = async () => {
@@ -298,6 +308,7 @@ export function MapScreen({ navigation }) {
           </View>
         ) : (
           <MapView
+            ref={(r) => mapRef.current = r}
             style={styles.map}
             region={region}
             showsUserLocation={false}
@@ -379,7 +390,7 @@ export function MapScreen({ navigation }) {
                 zIndex: 99,
                 bottom: 40,
                 left: 0,
-                width: 70
+                width: 70,
               }}
               label="Hủy"
               labelStyle={{ color: Colors.$textDanger }}
