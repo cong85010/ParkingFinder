@@ -118,6 +118,18 @@ export function MapScreen({ navigation }) {
         }
 
         writeUserData("190002");
+
+        // Fetch nearby places using Google Places API nearbysearch
+        console.log("Loadinggg");
+        const apiKey = GOOGLE_MAPS_API_KEY; // Replace with your Google Maps API key
+        const response = await fetch(
+          `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.coords.latitude},${location.coords.longitude}&radius=${radius}&type=parking&key=${apiKey}`
+        );
+        const result = await response.json();
+
+        if (result.status === "OK" && result.results.length > 0) {
+          setPlaces(result.results);
+        }
         setRegion({
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
@@ -230,21 +242,52 @@ export function MapScreen({ navigation }) {
         </View>
       </View>
       <SafeAreaView style={{ width: "100%", flex: 1 }}>
-        <WebView
-          // source={{ html: htmlContent }}
-          source={{ uri: "http://192.168.1.13:8000/" }}
-          style={{
-            width: "100%",
-            height: "100%",
-          }}
-          javaScriptEnabled={true}
-          domStorageEnabled={true}
-          startInLoadingState={true}
-          useWebView2
-          onMessage={(event) => {
-            console.log(event);
-          }}
-        />
+        {region.latitude !== 0 && (
+          <MapView
+            style={styles.map}
+            region={region}
+            showsUserLocation={false}
+            followsUserLocation={true}
+          >
+            {moveing ? (
+              <MapViewDirections
+                origin={region}
+                destination={destination}
+                apikey={GOOGLE_MAPS_API_KEY}
+                strokeWidth={5}
+                strokeColor="#3399ff"
+              />
+            ) : null}
+
+            {places.map((place, index) => (
+              <Marker
+                key={index}
+                onPress={(e) =>
+                  handleMarkerPress(e.nativeEvent.coordinate, place)
+                }
+                coordinate={{
+                  latitude: place.geometry.location.lat,
+                  longitude: place.geometry.location.lng,
+                }}
+                title={place.name}
+                description={place.vicinity}
+                icon={
+                  place.business_status === "OPERATIONAL"
+                    ? require("./assets/parking.png")
+                    : require("./assets/no-parking.png")
+                }
+              />
+            ))}
+
+            <Marker
+              coordinate={region}
+              title="Vị trí của bạn"
+              description="Bạn đang ở đây"
+              icon={require("./assets/car.png")}
+              anchor={{ x: 0.5, y: 0.5 }}
+            />
+          </MapView>
+        )}
         <View
           row
           style={{
@@ -321,7 +364,6 @@ const styles = StyleSheet.create({
 });
 
 const Stack = createNativeStackNavigator();
-
 
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
@@ -410,7 +452,7 @@ const DrawerNavigator = ({ navigation }) => {
           },
           headerLeft: () => (
             <TouchableOpacity onPress={() => navigate.goBack()}>
-              <ChevronLeftIcon color={Colors.primary}  />
+              <ChevronLeftIcon color={Colors.primary} />
             </TouchableOpacity>
           ),
           drawerIcon: ({ color }) => (

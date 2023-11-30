@@ -6,14 +6,14 @@ const NotificationsScreen = () => {
   const notifications = [
     {
       id: 1,
-      title: "New Message",
-      message: "You have a new message from John Doe.",
+      title: "Bãi đỗ xe mới",
+      message: "Có bãi đỗ xe mới gần bạn, hãy tìm hiểu ngay!",
       timestamp: new Date(),
     },
     {
       id: 2,
-      title: "Reminder",
-      message: "Don't forget to complete your task today!",
+      title: "Hãy thêm bãi đỗ xe yêu thích",
+      message: "Thêm bãi đỗ xe yêu thích để dễ dàng tìm kiếm hơn!",
       timestamp: new Date(),
     },
     // Add more notifications as needed
@@ -29,13 +29,13 @@ const NotificationsScreen = () => {
           padding-16
           style={styles.card}
         >
-          <Text text60R style={styles.notificationTitle}>
+          <Text text70R style={styles.notificationTitle}>
             {notification.title}
           </Text>
-          <Text text70 style={styles.notificationMessage}>
+          <Text text90R style={styles.notificationMessage}>
             {notification.message}
           </Text>
-          <Text text80 grey40>
+          <Text text90R grey40>
             {notification.timestamp.toDateString()}
           </Text>
         </Card>
