@@ -128,6 +128,42 @@ export function MapScreen({ navigation }) {
           latitudeDelta: 0.0922,
           longitudeDelta: 0.0421,
         });
+        const list = [
+          {
+            "name": "Bãi gửi xe Trường Đại học Điện Lực",
+            "rating": 4.7,
+            "user_ratings_total": 3,
+            "vicinity": "47Phạm Văn Đồng, Đối diện cổng sau BCA, 47Phạm Văn Đồng, Mai Dịch",
+            "status": "OK",
+            "business_status": "OPERATIONAL",
+            "time_start": "07:00",
+            "time_end": "23:00",
+            geometry: {
+              location: {
+                lat: 21.047437660287343,
+                lng: 105.78520944321211
+              }
+            }
+          },
+
+          {
+            "name": "Bãi gửi xe Trường Mần Non Sao Mai",
+            "rating": 4.7,
+            "user_ratings_total": 3,
+            "vicinity": "47Phạm Văn Đồng, Đối diện cổng sau BCA, 47Phạm Văn Đồng, Mai Dịch",
+            "status": "OK",
+            "business_status": "OPERATIONAL",
+            "time_start": "07:00",
+            "time_end": "23:00",
+            geometry: {
+              location: {
+                lat: 21.046115932562586,
+                lng: 105.78613212303055
+              }
+            }
+          }
+        ]
+        setPlaces(list)
         // function writeUserData(userId) {
         //   set(ref(db, "users/" + userId), {
         //     region: {
@@ -152,6 +188,8 @@ export function MapScreen({ navigation }) {
         //   setPlaces(result.results);
         // }
         // console.log("result", result);
+        
+        
         setLoading(false);
       } catch (error) {
         console.error(error);
@@ -195,7 +233,7 @@ export function MapScreen({ navigation }) {
 
   const handleCurrent = async () => {
     let location = await Location.getCurrentPositionAsync({});
-    console.log("mapRef.current", mapRef.current);
+    // console.log("mapRef.current", mapRef.current);
     const { latitude, longitude } = location.coords;
 
     mapRef.current.animateCamera({
@@ -208,7 +246,7 @@ export function MapScreen({ navigation }) {
 
     setRegion({
       latitude,
-        longitude,
+      longitude,
       latitudeDelta: 0.0922,
       longitudeDelta: 0.0421,
     });
@@ -491,20 +529,20 @@ export function MapScreen({ navigation }) {
           <Text text80R>Địa chỉ: {destination?.vicinity || "Trống"} </Text>
         </View>
         <View row centerV marginT-10 gap-5>
-          {destination?.status === "OK" ? (
+          {destination?.business_status === "OPERATIONAL" ? (
             <LockOpenIcon color={Colors.$iconSuccess} />
           ) : (
             <LockClosedIcon color={Colors.$iconDanger} />
           )}
           <Text text80R>
-            Trạng thái: {destination?.status === "OKE" ? "Mở cửa" : "Đóng cửa"}{" "}
+            Trạng thái: {destination?.business_status === "OPERATIONAL" ? "Mở cửa" : "Đóng cửa"}{" "}
           </Text>
         </View>
         <View row centerV marginT-10 gap-5>
           <ClockIcon color={Colors.$textNeutralHeavy} />
           <Text text80R>
-            Thời gian: {destination?.timeStart || "07:00"} :{" "}
-            {destination?.timeeND || "23:00"}{" "}
+            Thời gian: {destination?.time_start || "07:00"} :{" "}
+            {destination?.time_end || "23:00"}{" "}
           </Text>
         </View>
 
