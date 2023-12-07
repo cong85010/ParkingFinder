@@ -21,6 +21,7 @@ export function RegisterScreen({ navigation }) {
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [errorMessage, setErrorMessage] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const handleRegister = () => {
     if (password !== passwordConfirm) {
@@ -29,13 +30,16 @@ export function RegisterScreen({ navigation }) {
     }
 
     console.log(auth, email, password);
+    setLoading(true);
     createUserWithEmailAndPassword(auth, email, password)
       .then((userCredential) => {
-        // Signed in
+      setLoading(false);
+      // Signed in
         const user = userCredential.user;
         navigation.navigate("MapScreen");
       })
       .catch((error) => {
+        setLoading(false);
         const errorCode = error.code;
         const errorMessage = error.message;
         console.log(errorMessage);
@@ -119,6 +123,7 @@ export function RegisterScreen({ navigation }) {
           onPress={handleLogin}
         />
       </View>
+      <Loading isVisible={loading} text="Loading..." />
     </SafeAreaView>
   );
 }

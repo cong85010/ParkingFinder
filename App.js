@@ -13,7 +13,10 @@ import {
   AppRegistry,
   Alert,
   TextInput,
+  ScrollView,
+  Image,
 } from "react-native";
+import * as Linking from "expo-linking";
 import MapView, { Marker } from "react-native-maps";
 import * as Location from "expo-location";
 import { GOOGLE_MAPS_API_KEY } from "./secrets";
@@ -34,6 +37,7 @@ import {
 import { Picker } from "react-native-ui-lib/src/components/picker";
 import {
   ArrowRightOnRectangleIcon,
+  Bars3BottomRightIcon,
   Bars3Icon,
   BellAlertIcon,
   BellIcon,
@@ -48,6 +52,7 @@ import {
   MapIcon,
   MapPinIcon,
   NewspaperIcon,
+  PhoneIcon,
   StarIcon,
   UserIcon,
   XCircleIcon,
@@ -65,6 +70,8 @@ import ProfileScreen from "./screens/ProfileScreen";
 import NotificationsScreen from "./screens/Notification";
 import Loading from "./screens/Loading";
 import { AuthContext } from "./context";
+import { PRICE_TEXT, convertUtcOffset } from "./contanst";
+import Popover from "react-native-popover-view";
 // import MapScreen from "./screens/MapScreen";
 
 Colors.loadColors({
@@ -76,7 +83,54 @@ Colors.loadColors({
   $textPrimary: "#00bfff",
 });
 
+const GooglePlacesInput = ({ onPress }) => {
+  const ref = useRef();
+
+  const onClear = () => {
+    ref.current.clear();
+    ref.current.blur();
+    ref.current.focus();
+  };
+  return (
+    <GooglePlacesAutocomplete
+      ref={ref}
+      styles={{
+        zIndex: 999,
+        textInput: {
+          paddingHorizontal: 30,
+        },
+      }}
+      nearbyPlacesAPI="GooglePlacesSearch"
+      renderLeftButton={() => (
+        <MagnifyingGlassIcon
+          style={{ position: "relative", top: 10, left: 27, zIndex: 999 }}
+          color={Colors.$textNeutral}
+        />
+      )}
+      renderRightButton={() => (
+        <TouchableOpacity
+          style={{ position: "relative", top: 10, right: 27, zIndex: 999 }}
+          onPress={onClear}
+        >
+          <XCircleIcon color={Colors.$textNeutral} />
+        </TouchableOpacity>
+      )}
+      onFail={() => Alert.alert("Lỗi", "Hệ thống quá tải, thử lại sau!!!")}
+      fetchDetails={true}
+      placeholder="Bạn muốn đỗ xe ở đâu?"
+      onPress={onPress}
+      query={{
+        key: GOOGLE_MAPS_API_KEY,
+        language: "vi",
+        types: "parking",
+        radius: 10000,
+      }}
+    />
+  );
+};
+
 export function MapScreen({ navigation }) {
+  const screenWidth = Dimensions.get("window").width;
   const [region, setRegion] = useState({
     latitude: -1,
     longitude: 0,
@@ -90,6 +144,7 @@ export function MapScreen({ navigation }) {
     latitude: 0,
     longitude: 0,
   });
+  const [isShowFullTimeOfWeek, setIsShowFullTimeOfWeek] = useState(false);
   const [reload, setReload] = useState(false);
   const [moveing, setMoveing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -120,8 +175,17 @@ export function MapScreen({ navigation }) {
         }
 
         console.log("requestForegroundPermissionsAsync", status);
-        let location = await Location.getCurrentPositionAsync({});
+        let location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Highest,
+          maximumAge: 10000,
+          timeout: 5000,
+        });
+
         console.log("location", location);
+
+        location.coords.latitude = 10.834593012911455;
+        location.coords.longitude = 106.68884075965167;
+
         setRegion({
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
@@ -130,40 +194,40 @@ export function MapScreen({ navigation }) {
         });
         const list = [
           {
-            "name": "Bãi gửi xe Trường Đại học Điện Lực",
-            "rating": 4.7,
-            "user_ratings_total": 3,
-            "vicinity": "47Phạm Văn Đồng, Đối diện cổng sau BCA, 47Phạm Văn Đồng, Mai Dịch",
-            "status": "OK",
-            "business_status": "OPERATIONAL",
-            "time_start": "07:00",
-            "time_end": "23:00",
+            name: "Bãi gửi xe Trường Đại học Điện Lực",
+            rating: 4.7,
+            user_ratings_total: 3,
+            vicinity:
+              "47Phạm Văn Đồng, Đối diện cổng sau BCA, 47Phạm Văn Đồng, Mai Dịch",
+            status: "OK",
+            business_status: "OPERATIONAL",
+            time_start: "07:00",
+            time_end: "23:00",
             geometry: {
               location: {
                 lat: 21.047437660287343,
-                lng: 105.78520944321211
-              }
-            }
+                lng: 105.78520944321211,
+              },
+            },
           },
 
           {
-            "name": "Bãi gửi xe Trường Mần Non Sao Mai",
-            "rating": 4.7,
-            "user_ratings_total": 3,
-            "vicinity": "47Phạm Văn Đồng, Đối diện cổng sau BCA, 47Phạm Văn Đồng, Mai Dịch",
-            "status": "OK",
-            "business_status": "OPERATIONAL",
-            "time_start": "07:00",
-            "time_end": "23:00",
+            name: "Bãi gửi xe Trường Mần Non Sao Mai",
+            rating: 4.7,
+            user_ratings_total: 3,
+            vicinity: "47Phạm Văn Đồng, Đối diện",
+            status: "OK",
+            business_status: "OPERATIONAL",
+            opening_hours: { open_now: true },
             geometry: {
               location: {
-                lat: 21.046115932562586,
-                lng: 105.78613212303055
-              }
-            }
-          }
-        ]
-        setPlaces(list)
+                lat: 10.831743253209897,
+                lng: 106.68665889081245,
+              },
+            },
+          },
+        ];
+        setPlaces(list);
         // function writeUserData(userId) {
         //   set(ref(db, "users/" + userId), {
         //     region: {
@@ -176,20 +240,18 @@ export function MapScreen({ navigation }) {
 
         // writeUserData("190002");
 
-        // Fetch nearby places using Google Places API nearbysearch
-        // console.log("Loadinggg");
-        // const apiKey = GOOGLE_MAPS_API_KEY; // Replace with your Google Maps API key
-        // const response = await fetch(
-        //   `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.coords.latitude},${location.coords.longitude}&radius=${radius}&type=parking&key=${apiKey}`
-        // );
-        // const result = await response.json();
+        console.log("Loadinggg");
+        const apiKey = GOOGLE_MAPS_API_KEY; // Replace with your Google Maps API key
+        const response = await fetch(
+          `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.coords.latitude},${location.coords.longitude}&radius=${radius}&type=parking&key=${apiKey}`
+        );
+        const result = await response.json();
 
-        // if (result.status === "OK" && result.results.length > 0) {
-        //   setPlaces(result.results);
-        // }
-        // console.log("result", result);
-        
-        
+        if (result.status === "OK" && result.results.length > 0) {
+          setPlaces(result.results);
+        }
+        console.log("result", result);
+
         setLoading(false);
       } catch (error) {
         console.error(error);
@@ -206,11 +268,35 @@ export function MapScreen({ navigation }) {
     initData();
   }, [radius, reload]);
 
+  const getPlaceDetail = async function (place_id) {
+    try {
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place_id}&fields=formatted_phone_number,price_level,opening_hours&key=${GOOGLE_MAPS_API_KEY}`
+      );
+
+      const result = await response.json();
+      if (result.status !== "OK") throw new Error("Error");
+
+      return result?.result;
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   const handleMarkerPress = (coordinate, place) => {
     console.log("coordinate", coordinate);
     if (!coordinate || moveing) return;
-    setIsVisible(true);
-    setDestination({ ...coordinate, ...place });
+
+    console.log("place", place);
+    getPlaceDetail(place.place_id)
+      .then((response) => {
+        console.log("full", { ...coordinate, ...place, ...response });
+        setIsVisible(true);
+        setDestination({ ...coordinate, ...place, ...response });
+      })
+      .catch((err) => {
+        console.log("err", err);
+      });
     // setMoveing(true);
   };
 
@@ -229,10 +315,29 @@ export function MapScreen({ navigation }) {
     // });
     setMoveing(true);
   };
-  console.log("Region", region);
+
+  const onPressSearch = (data, details) => {
+    if (
+      details?.geometry?.location?.lat === undefined ||
+      details?.geometry?.location?.lng === undefined
+    )
+      return;
+
+    mapRef.current.animateCamera({
+      zoom: 17,
+      center: {
+        latitude: details?.geometry?.location?.lat,
+        longitude: details?.geometry?.location?.lng,
+      },
+    });
+  };
 
   const handleCurrent = async () => {
-    let location = await Location.getCurrentPositionAsync({});
+    const location = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Highest,
+      maximumAge: 10000,
+      timeout: 5000,
+    });
     // console.log("mapRef.current", mapRef.current);
     const { latitude, longitude } = location.coords;
 
@@ -270,6 +375,10 @@ export function MapScreen({ navigation }) {
     setReload((prv) => !prv);
   };
 
+  const handeOpenListPark = async () => {
+    navigation.navigate("ListParkScreen");
+  };
+
   const radiusOptions = [
     { label: "500m", value: 500 },
     { label: "1Km", value: 1000 },
@@ -277,15 +386,50 @@ export function MapScreen({ navigation }) {
     { label: "5Km", value: 5000 },
   ];
 
+  const renderTimeMove = (utc_offset) => {
+    if (!utc_offset) return "Chưa có thông tin";
+  };
+
+  const renderTime = (weekday_text) => {
+    if (!weekday_text) return "Chưa có thông tin";
+
+    const times = weekday_text.map((time) => {
+      const [day, timeRange] = time.split(": ");
+      return <View row marginT-3>
+        <Text text80B style={{width: 75}}>{day}:</Text>
+        <Text text80R>{timeRange}</Text>
+      </View>;
+    });
+
+    const dayOfWeek = new Date().getDay();
+    const today = weekday_text[dayOfWeek] + " (Hôm nay)";
+
+    return (
+      <View>
+        <Popover
+          from={
+            <TouchableOpacity style={{marginTop: 4}}>
+              <Text text80R>{today}</Text>
+            </TouchableOpacity>
+          }
+        >
+          <View padding-10 width={200}>
+          {times}
+          </View>
+        </Popover>
+      </View>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <View
         style={{
           zIndex: 99,
           width: "100%",
-          height: 80,
-          backgroundColor: Colors.primary,
+          height: 50,
           paddingTop: 40,
+          backgroundColor: Colors.primary,
         }}
       >
         <View row spread paddingH-10>
@@ -303,39 +447,47 @@ export function MapScreen({ navigation }) {
         </View>
         <View
           style={{
-            position: "reactive",
+            position: "absolute",
             width: "100%",
-            top: 30,
+            top: 100,
             left: 0,
-            paddingHorizontal: 20,
+            zIndex: 999,
           }}
         >
-          <MagnifyingGlassIcon
-            style={{ position: "absolute", top: 8, left: 27, zIndex: 999 }}
-            color={Colors.$textNeutral}
-          />
-          <TextInput
-            value={inputSearch}
-            onChangeText={setInputSearch}
-            onSubmitEditing={handleSubmitEditing}
-            placeholder="Bạn muốn đỗ xe ở đâu?"
-            style={{
-              backgroundColor: "#FFF",
-              height: 40,
-              paddingVertical: 10,
-              paddingHorizontal: 40,
-              borderRadius: 6,
-            }}
-          />
-          <TouchableOpacity
-            style={{ position: "absolute", top: 8, right: 27, zIndex: 999 }}
-            onPress={clearInput}
-          >
-            <XCircleIcon color={Colors.$textNeutral} />
-          </TouchableOpacity>
+          <GooglePlacesInput onPress={onPressSearch} />
         </View>
       </View>
-      <SafeAreaView style={{ width: "100%", flex: 1 }}>
+
+      <SafeAreaView
+        style={{
+          width: "100%",
+          flex: 1,
+          height: Dimensions.get("window").height,
+        }}
+      >
+        <View
+          style={{
+            width: "100%",
+            position: "relative",
+            top: 100,
+            zIndex: 9,
+          }}
+        >
+          <ScrollView horizontal={true} style={{}}>
+            {places?.slice(0, 5).map((place, idx) => (
+              <View
+                style={{ borderRadius: 18 }}
+                marginL-10
+                paddingH-10
+                paddingV-10
+                backgroundColor={Colors.$textWhite}
+                key={place?.place_id || idx}
+              >
+                <Text>{place?.name}</Text>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
         {region.latitude === 0 ? (
           <View center flex>
             <Button
@@ -346,7 +498,7 @@ export function MapScreen({ navigation }) {
           </View>
         ) : (
           <MapView
-            ref={(r) => mapRef.current = r}
+            ref={(r) => (mapRef.current = r)}
             style={styles.map}
             region={region}
             showsUserLocation={false}
@@ -361,21 +513,6 @@ export function MapScreen({ navigation }) {
                 strokeColor="#3399ff"
               />
             ) : null}
-
-            <Marker
-              onPress={(e) => handleMarkerPress(e.nativeEvent.coordinate)}
-              coordinate={{
-                latitude: 10.831743253209897,
-                longitude: 106.68665889081245,
-              }}
-              title="Bai do xe test"
-              description="Bai do xe test"
-              icon={
-                true
-                  ? require("./assets/parking.png")
-                  : require("./assets/no-parking.png")
-              }
-            />
             {places.map((place, index) => (
               <Marker
                 key={index}
@@ -410,12 +547,40 @@ export function MapScreen({ navigation }) {
           style={{
             position: "absolute",
             zIndex: 99,
-            bottom: 70,
+            bottom: 125,
             right: 0,
             paddingHorizontal: 20,
           }}
         >
-          <TouchableOpacity onPress={handleCurrent}>
+          <TouchableOpacity
+            onPress={handeOpenListPark}
+            style={{
+              borderRadius: 999,
+              backgroundColor: Colors.$textWhite,
+              padding: 5,
+            }}
+          >
+            <Bars3BottomRightIcon color={Colors.$backgroundNeutralHeavy} />
+          </TouchableOpacity>
+        </View>
+        <View
+          row
+          style={{
+            position: "absolute",
+            zIndex: 99,
+            bottom: 85,
+            right: 0,
+            paddingHorizontal: 20,
+          }}
+        >
+          <TouchableOpacity
+            onPress={handleCurrent}
+            style={{
+              borderRadius: 999,
+              backgroundColor: Colors.$textWhite,
+              padding: 5,
+            }}
+          >
             <LifebuoyIcon color={Colors.$textPrimary} />
           </TouchableOpacity>
         </View>
@@ -427,7 +592,7 @@ export function MapScreen({ navigation }) {
                 position: "absolute",
                 zIndex: 99,
                 bottom: 40,
-                left: 0,
+                left: 10,
                 width: 70,
               }}
               label="Hủy"
@@ -440,7 +605,7 @@ export function MapScreen({ navigation }) {
                 position: "absolute",
                 zIndex: 99,
                 bottom: 40,
-                left: 80,
+                left: 120,
                 paddingHorizontal: 20,
                 width: 200,
               }}
@@ -457,8 +622,8 @@ export function MapScreen({ navigation }) {
           style={{
             position: "absolute",
             zIndex: 99,
-            bottom: 30,
-            right: 0,
+            bottom: 20,
+            right: -5,
             paddingHorizontal: 20,
           }}
         >
@@ -481,11 +646,19 @@ export function MapScreen({ navigation }) {
             )}
             renderPicker={(_value, label) => {
               return (
-                <View row center>
-                  <Text $textDanger text80>
+                <View center>
+                  <TouchableOpacity
+                    style={{
+                      borderRadius: 999,
+                      backgroundColor: Colors.$textWhite,
+                      padding: 5,
+                    }}
+                  >
+                    <MapPinIcon color={Colors.$textDanger} />
+                  </TouchableOpacity>
+                  <Text $textDanger text80 marginR-5>
                     {label}
                   </Text>
-                  <MapPinIcon color={Colors.$textDanger} />
                 </View>
               );
             }}
@@ -495,8 +668,8 @@ export function MapScreen({ navigation }) {
             ))}
           </Picker>
         </View>
-        <Loading isVisible={loading} text="Loading" />
       </SafeAreaView>
+      <Loading isVisible={loading} text="Loading" />
       <Dialog
         visible={isVisible}
         onDismiss={() => setIsVisible(false)}
@@ -504,7 +677,7 @@ export function MapScreen({ navigation }) {
         panDirection={PanningProvider.Directions.DOWN}
         useSafeArea
         bottom={true}
-        height={300}
+        height={500}
         containerStyle={{
           zIndex: 999,
           backgroundColor: Colors.$textWhite,
@@ -516,7 +689,22 @@ export function MapScreen({ navigation }) {
           borderTopRightRadius: 20,
         }}
       >
-        <Text text60>Đỗ xe tại {destination?.name || "Chưa xác định"}</Text>
+        {destination?.photos?.length > 0 ? (
+          <View row centerV>
+            <Image
+              width={screenWidth - 40}
+              style={{ objectFit: "cover", borderRadius: 10 }}
+              height={150}
+              source={{
+                uri: `https://maps.googleapis.com/maps/api/place/photo?maxwidth=${screenWidth}&photo_reference=${destination?.photos[0]?.photo_reference}&key=${GOOGLE_MAPS_API_KEY}`,
+              }}
+            />
+          </View>
+        ) : null}
+
+        <Text text60 marginT-10>
+          Đỗ xe tại {destination?.name || "Chưa xác định"}
+        </Text>
         <View row centerV marginT-10 gap-5>
           <StarIcon color={Colors.$outlineWarning} />
           <Text text80R>
@@ -529,28 +717,47 @@ export function MapScreen({ navigation }) {
           <Text text80R>Địa chỉ: {destination?.vicinity || "Trống"} </Text>
         </View>
         <View row centerV marginT-10 gap-5>
-          {destination?.business_status === "OPERATIONAL" ? (
+          {destination?.opening_hours?.open_now ? (
             <LockOpenIcon color={Colors.$iconSuccess} />
           ) : (
             <LockClosedIcon color={Colors.$iconDanger} />
           )}
           <Text text80R>
-            Trạng thái: {destination?.business_status === "OPERATIONAL" ? "Mở cửa" : "Đóng cửa"}{" "}
+            Trạng thái:{" "}
+            {destination?.opening_hours?.open_now ? "Mở cửa" : "Đóng cửa"}{" "}
           </Text>
         </View>
         <View row centerV marginT-10 gap-5>
           <ClockIcon color={Colors.$textNeutralHeavy} />
           <Text text80R>
-            Thời gian: {destination?.time_start || "07:00"} :{" "}
-            {destination?.time_end || "23:00"}{" "}
+            Thời gian: {renderTime(destination?.opening_hours?.weekday_text)}
           </Text>
         </View>
 
         <View row centerV marginT-10 gap-5>
           <NewspaperIcon color={Colors.$outlinePrimary} />
-          <Text text80R>Giá: {destination?.price || "0"} VNĐ </Text>
+          <Text text80R>
+            Di chuyển: {convertUtcOffset(destination?.utc_offset)}
+          </Text>
         </View>
+        <View row centerV marginT-10 gap-5>
+          <PhoneIcon color={Colors.$outlinePrimary} />
+          <TouchableOpacity
+            onPress={() =>
+              Linking.openURL(`tel:${destination?.formatted_phone_number}`)
+            }
+          >
+            <Text text80R>SĐT: {destination?.formatted_phone_number}</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={{ height: 90 }} />
         <Button
+          style={{
+            position: "absolute",
+            bottom: 15,
+            width: "100%",
+            marginHorizontal: 20,
+          }}
           marginT-20
           label="Đến bãi đỗ xe"
           backgroundColor={Colors.primary}
