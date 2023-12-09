@@ -61,7 +61,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { NavigationContainer, useNavigation } from "@react-navigation/native";
 import WebView from "react-native-webview";
 import { auth, db } from "./firebase";
-import { ref, set } from "firebase/database";
+import { get, ref, set } from "firebase/database";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { LoginScreen } from "./screens/Login";
 import { RegisterScreen } from "./screens/Register";
@@ -70,8 +70,9 @@ import ProfileScreen from "./screens/ProfileScreen";
 import NotificationsScreen from "./screens/Notification";
 import Loading from "./screens/Loading";
 import { AuthContext } from "./context";
-import { PRICE_TEXT, convertUtcOffset } from "./contanst";
+import { PRICE_TEXT, convertUtcOffset, radiusOptions } from "./contanst";
 import Popover from "react-native-popover-view";
+import ListParkScreen from "./screens/ListParkScreen";
 // import MapScreen from "./screens/MapScreen";
 
 Colors.loadColors({
@@ -83,7 +84,7 @@ Colors.loadColors({
   $textPrimary: "#00bfff",
 });
 
-const GooglePlacesInput = ({ onPress }) => {
+const GooglePlacesInput = ({ location, onPress }) => {
   const ref = useRef();
 
   const onClear = () => {
@@ -100,6 +101,8 @@ const GooglePlacesInput = ({ onPress }) => {
           paddingHorizontal: 30,
         },
       }}
+      minLength={5}
+      enablePoweredByContainer={false}
       nearbyPlacesAPI="GooglePlacesSearch"
       renderLeftButton={() => (
         <MagnifyingGlassIcon
@@ -122,15 +125,15 @@ const GooglePlacesInput = ({ onPress }) => {
       query={{
         key: GOOGLE_MAPS_API_KEY,
         language: "vi",
-        types: "parking",
         radius: 10000,
+        location: `${location?.latitude},${location?.longitude}`,
       }}
     />
   );
 };
 
-export function MapScreen({ navigation }) {
-  const screenWidth = Dimensions.get("window").width;
+export function MapScreen({ route, navigation }) {
+  const screenWidth = Dimensions.get("window").width || 400;
   const [region, setRegion] = useState({
     latitude: -1,
     longitude: 0,
@@ -140,27 +143,28 @@ export function MapScreen({ navigation }) {
 
   const [places, setPlaces] = useState([]);
   const [radius, setRadius] = useState(500);
-  const [destination, setDestination] = useState({
-    latitude: 0,
-    longitude: 0,
-  });
   const [isShowFullTimeOfWeek, setIsShowFullTimeOfWeek] = useState(false);
   const [reload, setReload] = useState(false);
   const [moveing, setMoveing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
-  const [inputSearch, setInputSearch] = useState("");
-  const { currentUser } = useContext(AuthContext);
+  const { currentUser, locationMove, moveNewLocation } =
+    useContext(AuthContext);
   const mapRef = useRef(null);
-
-  function clearInput() {
-    setInputSearch("");
-  }
+  const [viewLocation, setViewLocation] = useState({
+    latitude: 0,
+    longitude: 0,
+  });
+  const selectedMove = route?.params?.selectedMove;
 
   useEffect(() => {
     if (!currentUser) {
       console.log("User is not logged in");
       navigation.navigate("LoginScreen");
+    } else {
+      (async () => {
+        await handleCurrent(true);
+      })();
     }
   }, [currentUser]);
 
@@ -168,30 +172,7 @@ export function MapScreen({ navigation }) {
     const initData = async () => {
       try {
         setLoading(true);
-        let { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== "granted") {
-          console.error("Permission to access location was denied");
-          return;
-        }
 
-        console.log("requestForegroundPermissionsAsync", status);
-        let location = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Highest,
-          maximumAge: 10000,
-          timeout: 5000,
-        });
-
-        console.log("location", location);
-
-        location.coords.latitude = 10.834593012911455;
-        location.coords.longitude = 106.68884075965167;
-
-        setRegion({
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-          latitudeDelta: 0.0922,
-          longitudeDelta: 0.0421,
-        });
         const list = [
           {
             name: "Bãi gửi xe Trường Đại học Điện Lực",
@@ -243,7 +224,7 @@ export function MapScreen({ navigation }) {
         console.log("Loadinggg");
         const apiKey = GOOGLE_MAPS_API_KEY; // Replace with your Google Maps API key
         const response = await fetch(
-          `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location.coords.latitude},${location.coords.longitude}&radius=${radius}&type=parking&key=${apiKey}`
+          `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${viewLocation.latitude},${viewLocation.longitude}&radius=${radius}&type=parking&key=${apiKey}`
         );
         const result = await response.json();
 
@@ -251,27 +232,23 @@ export function MapScreen({ navigation }) {
           setPlaces(result.results);
         }
         console.log("result", result);
-
-        setLoading(false);
       } catch (error) {
         console.error(error);
+      } finally {
         setLoading(false);
-        setRegion({
-          latitude: 0,
-          longitude: 0,
-          latitudeDelta: 0.0922,
-          longitudeDelta: 0.0421,
-        });
       }
     };
 
-    initData();
-  }, [radius, reload]);
+    if (viewLocation.latitude !== 0) {
+      initData();
+    }
+  }, [radius, viewLocation, reload]);
 
   const getPlaceDetail = async function (place_id) {
+    console.log("screenWidth", screenWidth);
     try {
       const response = await fetch(
-        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place_id}&fields=formatted_phone_number,price_level,opening_hours&key=${GOOGLE_MAPS_API_KEY}`
+        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place_id}&fields=formatted_phone_number,price_level,opening_hours&language=vi&key=${GOOGLE_MAPS_API_KEY}`
       );
 
       const result = await response.json();
@@ -283,16 +260,25 @@ export function MapScreen({ navigation }) {
     }
   };
 
-  const handleMarkerPress = (coordinate, place) => {
-    console.log("coordinate", coordinate);
-    if (!coordinate || moveing) return;
+  const handleMarkerPress = (place) => {
+    if (moveing) return;
 
+    const coordinate = {
+      latitude: place?.geometry?.location?.lat,
+      longitude: place?.geometry?.location?.lng,
+    };
     console.log("place", place);
     getPlaceDetail(place.place_id)
       .then((response) => {
         console.log("full", { ...coordinate, ...place, ...response });
         setIsVisible(true);
-        setDestination({ ...coordinate, ...place, ...response });
+        moveNewLocation({ ...coordinate, ...place, ...response });
+        const isNewMarker = places.every(
+          (p) => p.place_id !== selectedMove.place_id
+        );
+        if(isNewMarker) {
+          setPlaces((prev) => [...prev, place]);
+        }
       })
       .catch((err) => {
         console.log("err", err);
@@ -300,44 +286,41 @@ export function MapScreen({ navigation }) {
     // setMoveing(true);
   };
 
-  const handleSubmitEditing = ({
-    nativeEvent: { text, eventCount, target },
-  }) => {
-    console.log(text);
-    // if (
-    //   details?.geometry?.location?.lat === undefined ||
-    //   details?.geometry?.location?.lng === undefined
-    // )
-    //   return;
-    // setDestination({
-    //   latitude: details?.geometry?.location?.lat,
-    //   longitude: details?.geometry?.location?.lng,
-    // });
-    setMoveing(true);
-  };
+  useEffect(() => {
+    if (selectedMove) {
+      handleMarkerPress(selectedMove);
+    }
+  }, [selectedMove]);
 
   const onPressSearch = (data, details) => {
-    if (
-      details?.geometry?.location?.lat === undefined ||
-      details?.geometry?.location?.lng === undefined
-    )
-      return;
+    const latitude = details?.geometry?.location?.lat;
+    const longitude = details?.geometry?.location?.lng;
+
+    if (latitude === undefined || longitude === undefined) return;
 
     mapRef.current.animateCamera({
       zoom: 17,
       center: {
-        latitude: details?.geometry?.location?.lat,
-        longitude: details?.geometry?.location?.lng,
+        latitude,
+        longitude,
       },
+    });
+
+    setViewLocation({
+      latitude,
+      longitude,
     });
   };
 
-  const handleCurrent = async () => {
+  const handleCurrent = async (isCurrent = false) => {
     const location = await Location.getCurrentPositionAsync({
       accuracy: Location.Accuracy.Highest,
       maximumAge: 10000,
       timeout: 5000,
     });
+
+    location.coords.latitude = 10.834593012911455;
+    location.coords.longitude = 106.68884075965167;
     // console.log("mapRef.current", mapRef.current);
     const { latitude, longitude } = location.coords;
 
@@ -349,12 +332,19 @@ export function MapScreen({ navigation }) {
       },
     });
 
-    setRegion({
+    setViewLocation({
       latitude,
       longitude,
-      latitudeDelta: 0.0922,
-      longitudeDelta: 0.0421,
     });
+
+    if (isCurrent) {
+      setRegion({
+        latitude,
+        longitude,
+        latitudeDelta: 0.0922,
+        longitudeDelta: 0.0421,
+      });
+    }
   };
 
   const handleMoveToPark = async () => {
@@ -367,7 +357,7 @@ export function MapScreen({ navigation }) {
   };
 
   const handleCancelPark = async () => {
-    setDestination({});
+    moveNewLocation({});
     setMoveing(false);
   };
 
@@ -376,18 +366,9 @@ export function MapScreen({ navigation }) {
   };
 
   const handeOpenListPark = async () => {
-    navigation.navigate("ListParkScreen");
-  };
-
-  const radiusOptions = [
-    { label: "500m", value: 500 },
-    { label: "1Km", value: 1000 },
-    { label: "2Km", value: 2000 },
-    { label: "5Km", value: 5000 },
-  ];
-
-  const renderTimeMove = (utc_offset) => {
-    if (!utc_offset) return "Chưa có thông tin";
+    navigation.navigate("ListParkScreen", {
+      viewLocation,
+    });
   };
 
   const renderTime = (weekday_text) => {
@@ -395,10 +376,14 @@ export function MapScreen({ navigation }) {
 
     const times = weekday_text.map((time) => {
       const [day, timeRange] = time.split(": ");
-      return <View row marginT-3>
-        <Text text80B style={{width: 75}}>{day}:</Text>
-        <Text text80R>{timeRange}</Text>
-      </View>;
+      return (
+        <View row marginT-3 key={day}>
+          <Text text80B style={{ width: 75 }}>
+            {day}:
+          </Text>
+          <Text text80R>{timeRange}</Text>
+        </View>
+      );
     });
 
     const dayOfWeek = new Date().getDay();
@@ -408,13 +393,13 @@ export function MapScreen({ navigation }) {
       <View>
         <Popover
           from={
-            <TouchableOpacity style={{marginTop: 4}}>
+            <TouchableOpacity style={{ position: "relative", top: 4 }}>
               <Text text80R>{today}</Text>
             </TouchableOpacity>
           }
         >
           <View padding-10 width={200}>
-          {times}
+            {times}
           </View>
         </Popover>
       </View>
@@ -454,7 +439,7 @@ export function MapScreen({ navigation }) {
             zIndex: 999,
           }}
         >
-          <GooglePlacesInput onPress={onPressSearch} />
+          <GooglePlacesInput onPress={onPressSearch} location={viewLocation} />
         </View>
       </View>
 
@@ -475,7 +460,7 @@ export function MapScreen({ navigation }) {
         >
           <ScrollView horizontal={true} style={{}}>
             {places?.slice(0, 5).map((place, idx) => (
-              <View
+              <TouchableOpacity
                 style={{ borderRadius: 18 }}
                 marginL-10
                 paddingH-10
@@ -483,8 +468,10 @@ export function MapScreen({ navigation }) {
                 backgroundColor={Colors.$textWhite}
                 key={place?.place_id || idx}
               >
-                <Text>{place?.name}</Text>
-              </View>
+                <TouchableOpacity onPress={() => handleMarkerPress(place)}>
+                  <Text>{place?.name}</Text>
+                </TouchableOpacity>
+              </TouchableOpacity>
             ))}
           </ScrollView>
         </View>
@@ -503,11 +490,13 @@ export function MapScreen({ navigation }) {
             region={region}
             showsUserLocation={false}
             followsUserLocation={true}
+            showsTraffic={false}
+            userLocationPriority="high"
           >
             {moveing ? (
               <MapViewDirections
                 origin={region}
-                destination={destination}
+                destination={locationMove}
                 apikey={GOOGLE_MAPS_API_KEY}
                 strokeWidth={5}
                 strokeColor="#3399ff"
@@ -516,9 +505,7 @@ export function MapScreen({ navigation }) {
             {places.map((place, index) => (
               <Marker
                 key={index}
-                onPress={(e) =>
-                  handleMarkerPress(e.nativeEvent.coordinate, place)
-                }
+                onPress={(e) => handleMarkerPress(place)}
                 coordinate={{
                   latitude: place.geometry.location.lat,
                   longitude: place.geometry.location.lng,
@@ -689,65 +676,69 @@ export function MapScreen({ navigation }) {
           borderTopRightRadius: 20,
         }}
       >
-        {destination?.photos?.length > 0 ? (
-          <View row centerV>
+        <View row center>
+          {locationMove?.photos?.length > 0 ? (
+            <Image
+              width={screenWidth - 40}
+              height={150}
+              source={{
+                uri: `https://maps.googleapis.com/maps/api/place/photo?maxwidth=${500}&photo_reference=${
+                  locationMove?.photos[0]?.photo_reference
+                }&key=${GOOGLE_MAPS_API_KEY}`,
+              }}
+            />
+          ) : (
             <Image
               width={screenWidth - 40}
               style={{ objectFit: "cover", borderRadius: 10 }}
               height={150}
-              source={{
-                uri: `https://maps.googleapis.com/maps/api/place/photo?maxwidth=${screenWidth}&photo_reference=${destination?.photos[0]?.photo_reference}&key=${GOOGLE_MAPS_API_KEY}`,
-              }}
+              source={require("./assets/default-parking.png")}
             />
-          </View>
-        ) : null}
+          )}
+        </View>
 
         <Text text60 marginT-10>
-          Đỗ xe tại {destination?.name || "Chưa xác định"}
+          Đỗ xe tại {locationMove?.name || "Chưa xác định"}
         </Text>
         <View row centerV marginT-10 gap-5>
           <StarIcon color={Colors.$outlineWarning} />
           <Text text80R>
-            Đánh giá: {destination?.rating || "0"} sao | (
-            {destination.user_ratings_total} người){" "}
+            Đánh giá: {locationMove?.rating || "0"} sao | (
+            {locationMove.user_ratings_total} người){" "}
           </Text>
         </View>
         <View row centerV marginT-10 gap-5 paddingR-20>
           <MapPinIcon color={Colors.$backgroundDangerHeavy} />
-          <Text text80R>Địa chỉ: {destination?.vicinity || "Trống"} </Text>
+          <Text text80R>Địa chỉ: {locationMove?.vicinity || "Trống"} </Text>
         </View>
         <View row centerV marginT-10 gap-5>
-          {destination?.opening_hours?.open_now ? (
+          {locationMove?.opening_hours?.open_now ? (
             <LockOpenIcon color={Colors.$iconSuccess} />
           ) : (
             <LockClosedIcon color={Colors.$iconDanger} />
           )}
           <Text text80R>
             Trạng thái:{" "}
-            {destination?.opening_hours?.open_now ? "Mở cửa" : "Đóng cửa"}{" "}
+            {locationMove?.opening_hours?.open_now ? "Mở cửa" : "Đóng cửa"}{" "}
           </Text>
         </View>
         <View row centerV marginT-10 gap-5>
           <ClockIcon color={Colors.$textNeutralHeavy} />
           <Text text80R>
-            Thời gian: {renderTime(destination?.opening_hours?.weekday_text)}
-          </Text>
-        </View>
-
-        <View row centerV marginT-10 gap-5>
-          <NewspaperIcon color={Colors.$outlinePrimary} />
-          <Text text80R>
-            Di chuyển: {convertUtcOffset(destination?.utc_offset)}
+            Thời gian: {renderTime(locationMove?.opening_hours?.weekday_text)}
           </Text>
         </View>
         <View row centerV marginT-10 gap-5>
           <PhoneIcon color={Colors.$outlinePrimary} />
           <TouchableOpacity
             onPress={() =>
-              Linking.openURL(`tel:${destination?.formatted_phone_number}`)
+              locationMove?.formatted_phone_number &&
+              Linking.openURL(`tel:${locationMove?.formatted_phone_number}`)
             }
           >
-            <Text text80R>SĐT: {destination?.formatted_phone_number}</Text>
+            <Text text80R>
+              SĐT: {locationMove?.formatted_phone_number || "Trống"}
+            </Text>
           </TouchableOpacity>
         </View>
         <View style={{ height: 90 }} />
@@ -786,6 +777,7 @@ const Stack = createNativeStackNavigator();
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [pending, setPending] = useState(true);
+  const [locationMove, setLocationMove] = useState({});
 
   useEffect(() => {
     auth.onAuthStateChanged((user) => {
@@ -798,10 +790,16 @@ export const AuthProvider = ({ children }) => {
     return <Loading isVisible={pending} text="Loading" />;
   }
 
+  function moveNewLocation(location) {
+    setLocationMove(location);
+  }
+
   return (
     <AuthContext.Provider
       value={{
         currentUser,
+        locationMove,
+        moveNewLocation,
       }}
     >
       {children}
@@ -917,7 +915,7 @@ const DrawerNavigator = ({ navigation }) => {
   );
 };
 
-export const HomeScreen = () => {
+export const HomeScreen = ({ navigation }) => {
   return (
     <Stack.Navigator initialRouteName="MapScreen">
       <Stack.Screen
@@ -940,6 +938,29 @@ export const HomeScreen = () => {
         }}
         name="MapScreen"
         component={MapScreen}
+      />
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          title: "Danh sách bãi đỗ xe",
+          headerStyle: {
+            backgroundColor: Colors.primary,
+          },
+          headerLeftContainerStyle: {
+            paddingLeft: 10,
+          },
+          headerLeft: () => (
+            <TouchableOpacity onPress={() => navigation.goBack()}>
+              <ChevronLeftIcon color={Colors.white} />
+            </TouchableOpacity>
+          ),
+          headerTitleAlign: "center",
+          headerTitleStyle: {
+            color: Colors.white,
+          },
+        }}
+        name="ListParkScreen"
+        component={ListParkScreen}
       />
     </Stack.Navigator>
   );

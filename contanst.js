@@ -19,3 +19,10 @@ export function convertUtcOffset(utcOffsetMinutes) {
 
     return formattedOffset;
 }
+
+export const radiusOptions = [
+  { label: "500m", value: 500 },
+  { label: "1Km", value: 1000 },
+  { label: "2Km", value: 2000 },
+  { label: "5Km", value: 5000 },
+];
