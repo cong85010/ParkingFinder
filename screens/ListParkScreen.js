@@ -199,7 +199,8 @@ const ListParkScreen = ({ navigation }) => {
             backgroundColor: "#FFF",
             height: "100%",
             paddingVertical: 10,
-            paddingHorizontal: 40,
+            paddingHorizontal: 20,
+            width: "60%",
             borderRadius: 999,
           }}
           clearButtonMode="always"

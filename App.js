@@ -15,6 +15,7 @@ import {
   TextInput,
   ScrollView,
   Image,
+  ActivityIndicator,
 } from "react-native";
 import * as Linking from "expo-linking";
 import MapView, { Marker } from "react-native-maps";
@@ -43,6 +44,7 @@ import {
   BellIcon,
   ChevronLeftIcon,
   ClockIcon,
+  HeartIcon as HeartIconS,
   HomeIcon,
   HomeModernIcon,
   LifebuoyIcon,
@@ -54,11 +56,17 @@ import {
   NewspaperIcon,
   PhoneIcon,
   StarIcon,
+  TruckIcon,
   UserIcon,
   XCircleIcon,
 } from "react-native-heroicons/solid";
+import { HeartIcon } from "react-native-heroicons/outline";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { NavigationContainer, useNavigation } from "@react-navigation/native";
+import {
+  NavigationContainer,
+  useIsFocused,
+  useNavigation,
+} from "@react-navigation/native";
 import WebView from "react-native-webview";
 import { auth, db } from "./firebase";
 import { get, ref, set } from "firebase/database";
@@ -73,6 +81,7 @@ import { AuthContext } from "./context";
 import { PRICE_TEXT, convertUtcOffset, radiusOptions } from "./contanst";
 import Popover from "react-native-popover-view";
 import ListParkScreen from "./screens/ListParkScreen";
+import { addDoc, collection, doc, getDoc, updateDoc } from "firebase/firestore";
 // import MapScreen from "./screens/MapScreen";
 
 Colors.loadColors({
@@ -145,11 +154,16 @@ export function MapScreen({ route, navigation }) {
   const [radius, setRadius] = useState(500);
   const [isShowFullTimeOfWeek, setIsShowFullTimeOfWeek] = useState(false);
   const [reload, setReload] = useState(false);
-  const [moveing, setMoveing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadingDialog, setLoadingDialog] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
-  const { currentUser, locationMove, moveNewLocation } =
-    useContext(AuthContext);
+  const {
+    currentUser,
+    locationMove,
+    moveNewLocation,
+    updateUser,
+    updateLocationMove,
+  } = useContext(AuthContext);
   const mapRef = useRef(null);
   const [viewLocation, setViewLocation] = useState({
     latitude: 0,
@@ -172,6 +186,7 @@ export function MapScreen({ route, navigation }) {
     const initData = async () => {
       try {
         setLoading(true);
+        setPlaces([]);
 
         const list = [
           {
@@ -208,7 +223,6 @@ export function MapScreen({ route, navigation }) {
             },
           },
         ];
-        setPlaces(list);
         // function writeUserData(userId) {
         //   set(ref(db, "users/" + userId), {
         //     region: {
@@ -221,17 +235,17 @@ export function MapScreen({ route, navigation }) {
 
         // writeUserData("190002");
 
-        console.log("Loadinggg");
-        const apiKey = GOOGLE_MAPS_API_KEY; // Replace with your Google Maps API key
-        const response = await fetch(
-          `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${viewLocation.latitude},${viewLocation.longitude}&radius=${radius}&type=parking&key=${apiKey}`
-        );
-        const result = await response.json();
+        // console.log("Loadinggg");
+        // const apiKey = GOOGLE_MAPS_API_KEY; // Replace with your Google Maps API key
+        // const response = await fetch(
+        //   `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${viewLocation.latitude},${viewLocation.longitude}&radius=${radius}&type=parking&key=${apiKey}`
+        // );
+        // const result = await response.json();
 
-        if (result.status === "OK" && result.results.length > 0) {
-          setPlaces(result.results);
-        }
-        console.log("result", result);
+        // if (result.status === "OK" && result.results.length > 0) {
+        //   setPlaces(result.results);
+        // }
+        // console.log("result", result);
       } catch (error) {
         console.error(error);
       } finally {
@@ -261,13 +275,12 @@ export function MapScreen({ route, navigation }) {
   };
 
   const handleMarkerPress = (place) => {
-    if (moveing) return;
+    if (locationMove?.place_id) return;
 
     const coordinate = {
       latitude: place?.geometry?.location?.lat,
       longitude: place?.geometry?.location?.lng,
     };
-    console.log("place", place);
     getPlaceDetail(place.place_id)
       .then((response) => {
         console.log("full", { ...coordinate, ...place, ...response });
@@ -276,14 +289,13 @@ export function MapScreen({ route, navigation }) {
         const isNewMarker = places.every(
           (p) => p.place_id !== selectedMove.place_id
         );
-        if(isNewMarker) {
+        if (isNewMarker) {
           setPlaces((prev) => [...prev, place]);
         }
       })
       .catch((err) => {
         console.log("err", err);
       });
-    // setMoveing(true);
   };
 
   useEffect(() => {
@@ -347,18 +359,82 @@ export function MapScreen({ route, navigation }) {
     }
   };
 
+  const handleSaveHeart = async () => {
+    const place_id = locationMove?.place_id;
+    if (!place_id) return;
+
+    const user_id = currentUser?.id;
+    if (!user_id) return;
+
+    setLoadingDialog(true);
+    const isFavorited = currentUser?.favorite?.indexOf(place_id);
+    const favorite = currentUser?.favorite || [];
+    const docRef = doc(db, "users", user_id);
+
+    let message = "";
+    if (isFavorited === -1) {
+      favorite.push(place_id);
+      message = "Đã thêm vào danh sách yêu thích";
+    } else {
+      favorite.splice(isFavorited, 1);
+      message = "Đã xóa khỏi danh sách yêu thích";
+    }
+
+    await updateDoc(docRef, {
+      favorite,
+    });
+    updateUser("favorite", favorite);
+    alert(message);
+    setLoadingDialog(false);
+  };
+
   const handleMoveToPark = async () => {
+    setLoadingDialog(true);
+    const collectionRef = collection(db, "parkings");
+
+    const ref = await addDoc(collectionRef, {
+      userId: currentUser?.id,
+      placeId: locationMove?.place_id,
+      name: locationMove?.name,
+      address: locationMove?.vicinity,
+      latitude: locationMove?.geometry?.location?.lat,
+      longitude: locationMove?.geometry?.location?.lng,
+      timeStart: locationMove?.timeStart,
+      timeEnd: new Date().getTime(),
+      timeFinish: null,
+      status: "moving",
+    });
+
+    updateLocationMove("parkingId", ref.id);
+    setLoadingDialog(false);
     setIsVisible(false);
-    setMoveing(true);
   };
 
   const handleFinishPark = async () => {
-    setMoveing(false);
+    setLoadingDialog(true);
+    const docRef = doc(db, "parkings", locationMove?.parkingId);
+
+    await updateDoc(docRef, {
+      timeEnd: new Date().getTime(),
+      status: "parking",
+    });
+
+    alert("Đã đỗ xe thành công");
+    setLoadingDialog(false);
   };
 
   const handleCancelPark = async () => {
+    setLoadingDialog(true);
+    const docRef = doc(db, "parkings", locationMove?.parkingId);
+
+    await updateDoc(docRef, {
+      timeEnd: new Date().getTime(),
+      status: "cancel",
+    });
+
+    alert("Đã hủy xe thành công");
     moveNewLocation({});
-    setMoveing(false);
+    setLoadingDialog(false);
   };
 
   const handleReload = async () => {
@@ -412,7 +488,7 @@ export function MapScreen({ route, navigation }) {
         style={{
           zIndex: 99,
           width: "100%",
-          height: 50,
+          height: 80,
           paddingTop: 40,
           backgroundColor: Colors.primary,
         }}
@@ -442,7 +518,6 @@ export function MapScreen({ route, navigation }) {
           <GooglePlacesInput onPress={onPressSearch} location={viewLocation} />
         </View>
       </View>
-
       <SafeAreaView
         style={{
           width: "100%",
@@ -466,7 +541,7 @@ export function MapScreen({ route, navigation }) {
                 paddingH-10
                 paddingV-10
                 backgroundColor={Colors.$textWhite}
-                key={place?.place_id || idx}
+                key={place?.place_id + idx || idx}
               >
                 <TouchableOpacity onPress={() => handleMarkerPress(place)}>
                   <Text>{place?.name}</Text>
@@ -493,7 +568,7 @@ export function MapScreen({ route, navigation }) {
             showsTraffic={false}
             userLocationPriority="high"
           >
-            {moveing ? (
+            {locationMove?.place_id ? (
               <MapViewDirections
                 origin={region}
                 destination={locationMove}
@@ -529,27 +604,29 @@ export function MapScreen({ route, navigation }) {
             />
           </MapView>
         )}
-        <View
-          row
-          style={{
-            position: "absolute",
-            zIndex: 99,
-            bottom: 125,
-            right: 0,
-            paddingHorizontal: 20,
-          }}
-        >
-          <TouchableOpacity
-            onPress={handeOpenListPark}
+        {locationMove?.place_id ? null : (
+          <View
+            row
             style={{
-              borderRadius: 999,
-              backgroundColor: Colors.$textWhite,
-              padding: 5,
+              position: "absolute",
+              zIndex: 99,
+              bottom: 125,
+              right: 0,
+              paddingHorizontal: 20,
             }}
           >
-            <Bars3BottomRightIcon color={Colors.$backgroundNeutralHeavy} />
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity
+              onPress={handeOpenListPark}
+              style={{
+                borderRadius: 999,
+                backgroundColor: Colors.$textWhite,
+                padding: 5,
+              }}
+            >
+              <Bars3BottomRightIcon color={Colors.$backgroundNeutralHeavy} />
+            </TouchableOpacity>
+          </View>
+        )}
         <View
           row
           style={{
@@ -571,7 +648,7 @@ export function MapScreen({ route, navigation }) {
             <LifebuoyIcon color={Colors.$textPrimary} />
           </TouchableOpacity>
         </View>
-        {moveing ? (
+        {locationMove?.place_id ? (
           <>
             <Button
               marginT-20
@@ -594,7 +671,7 @@ export function MapScreen({ route, navigation }) {
                 bottom: 40,
                 left: 120,
                 paddingHorizontal: 20,
-                width: 200,
+                width: 250,
               }}
               marginT-20
               label="Đã đỗ xe"
@@ -602,59 +679,59 @@ export function MapScreen({ route, navigation }) {
               onPress={handleFinishPark}
             />
           </>
-        ) : null}
-
-        <View
-          row
-          style={{
-            position: "absolute",
-            zIndex: 99,
-            bottom: 20,
-            right: -5,
-            paddingHorizontal: 20,
-          }}
-        >
-          <Picker
-            enableModalBlur={false}
-            useDialog
-            value={radius}
-            onChange={(value) => setRadius(value)}
-            label="Bán kính"
-            placeholder="Chọn bán kính"
-            customPickerProps={{
-              migrateDialog: true,
-              dialogProps: { bottom: true, width: "100%", height: "45%" },
-            }}
-            topBarProps={{ title: "Languages" }}
-            renderCustomDialogHeader={({ onDone, onCancel }) => (
-              <View padding-s5 row spread>
-                <Text text70>Bán kính khu vực:</Text>
-              </View>
-            )}
-            renderPicker={(_value, label) => {
-              return (
-                <View center>
-                  <TouchableOpacity
-                    style={{
-                      borderRadius: 999,
-                      backgroundColor: Colors.$textWhite,
-                      padding: 5,
-                    }}
-                  >
-                    <MapPinIcon color={Colors.$textDanger} />
-                  </TouchableOpacity>
-                  <Text $textDanger text80 marginR-5>
-                    {label}
-                  </Text>
-                </View>
-              );
+        ) : (
+          <View
+            row
+            style={{
+              position: "absolute",
+              zIndex: 99,
+              bottom: 20,
+              right: -5,
+              paddingHorizontal: 20,
             }}
           >
-            {radiusOptions.map((radius) => (
-              <Picker.Item key={radius.value} {...radius} />
-            ))}
-          </Picker>
-        </View>
+            <Picker
+              enableModalBlur={false}
+              useDialog
+              value={radius}
+              onChange={(value) => setRadius(value)}
+              label="Bán kính"
+              placeholder="Chọn bán kính"
+              customPickerProps={{
+                migrateDialog: true,
+                dialogProps: { bottom: true, width: "100%", height: "45%" },
+              }}
+              topBarProps={{ title: "Languages" }}
+              renderCustomDialogHeader={({ onDone, onCancel }) => (
+                <View padding-s5 row spread>
+                  <Text text70>Bán kính khu vực:</Text>
+                </View>
+              )}
+              renderPicker={(_value, label) => {
+                return (
+                  <View center>
+                    <TouchableOpacity
+                      style={{
+                        borderRadius: 999,
+                        backgroundColor: Colors.$textWhite,
+                        padding: 5,
+                      }}
+                    >
+                      <MapPinIcon color={Colors.$textDanger} />
+                    </TouchableOpacity>
+                    <Text $textDanger text80 marginR-5>
+                      {label}
+                    </Text>
+                  </View>
+                );
+              }}
+            >
+              {radiusOptions.map((radius) => (
+                <Picker.Item key={radius.value} {...radius} />
+              ))}
+            </Picker>
+          </View>
+        )}
       </SafeAreaView>
       <Loading isVisible={loading} text="Loading" />
       <Dialog
@@ -704,7 +781,7 @@ export function MapScreen({ route, navigation }) {
           <StarIcon color={Colors.$outlineWarning} />
           <Text text80R>
             Đánh giá: {locationMove?.rating || "0"} sao | (
-            {locationMove.user_ratings_total} người){" "}
+            {locationMove.user_ratings_total} người)
           </Text>
         </View>
         <View row centerV marginT-10 gap-5 paddingR-20>
@@ -718,8 +795,8 @@ export function MapScreen({ route, navigation }) {
             <LockClosedIcon color={Colors.$iconDanger} />
           )}
           <Text text80R>
-            Trạng thái:{" "}
-            {locationMove?.opening_hours?.open_now ? "Mở cửa" : "Đóng cửa"}{" "}
+            Trạng thái:
+            {locationMove?.opening_hours?.open_now ? "Mở cửa" : "Đóng cửa"}
           </Text>
         </View>
         <View row centerV marginT-10 gap-5>
@@ -741,19 +818,43 @@ export function MapScreen({ route, navigation }) {
             </Text>
           </TouchableOpacity>
         </View>
-        <View style={{ height: 90 }} />
-        <Button
+        <View
+          row
           style={{
             position: "absolute",
             bottom: 15,
             width: "100%",
             marginHorizontal: 20,
+            borderRadius: 999,
           }}
-          marginT-20
-          label="Đến bãi đỗ xe"
-          backgroundColor={Colors.primary}
-          onPress={handleMoveToPark}
-        />
+          center
+          spread
+          gap-10
+        >
+          <Button
+            backgroundColor={Colors.$backgroundGeneralLight}
+            onPress={handleSaveHeart}
+            style={{
+              width: 30,
+              paddingHorizontal: 5,
+            }}
+          >
+            {currentUser?.favorite?.indexOf(locationMove?.place_id) !== -1 ? (
+              <HeartIconS color={Colors.$textDanger} />
+            ) : (
+              <HeartIcon color={Colors.black} />
+            )}
+          </Button>
+          <Button
+            style={{
+              width: "80%",
+            }}
+            label="Đến bãi đỗ xe"
+            backgroundColor={Colors.primary}
+            onPress={handleMoveToPark}
+          />
+        </View>
+        <Loading isVisible={loadingDialog} />
       </Dialog>
     </View>
   );
@@ -779,10 +880,40 @@ export const AuthProvider = ({ children }) => {
   const [pending, setPending] = useState(true);
   const [locationMove, setLocationMove] = useState({});
 
+  function fetchUser(userID) {
+    getDoc(doc(db, "users", userID)).then((doc) => {
+      if (doc.exists()) {
+        setCurrentUser({
+          id: doc.id,
+          ...doc.data(),
+        });
+      } else {
+        alert("Tài khoản không tồn tại");
+      }
+      setPending(false);
+    });
+  }
+
+  function updateUser(field, data) {
+    const user = currentUser;
+    user[field] = data;
+    setCurrentUser(user);
+  }
+
+  function updateLocationMove(field, data) {
+    const newData = locationMove;
+    newData[field] = data;
+    setLocationMove(newData);
+  }
+
   useEffect(() => {
     auth.onAuthStateChanged((user) => {
-      setCurrentUser(user);
-      setPending(false);
+      if (!user) {
+        setCurrentUser(null);
+        setPending(false);
+        return;
+      }
+      fetchUser(user?.uid);
     });
   }, []);
 
@@ -791,7 +922,10 @@ export const AuthProvider = ({ children }) => {
   }
 
   function moveNewLocation(location) {
-    setLocationMove(location);
+    setLocationMove({
+      ...location,
+      timeStart: new Date().getTime(),
+    });
   }
 
   return (
@@ -800,6 +934,9 @@ export const AuthProvider = ({ children }) => {
         currentUser,
         locationMove,
         moveNewLocation,
+        fetchUser,
+        updateUser,
+        updateLocationMove,
       }}
     >
       {children}
@@ -813,27 +950,25 @@ const IconView = ({ children }) => (
   <View style={{ flexDirection: "row", alignItems: "center" }}>{children}</View>
 );
 
-const LogoutScreen = ({ navigation }) => {
-  const { currentUser } = useContext(AuthContext);
+const LogoutScreen = ({ route, navigation }) => {
+  const isFocused = useIsFocused();
 
   const handleLogout = () => {
+    console.log("Logout page");
     auth.signOut().then(() => {
       navigation.navigate("LoginScreen");
     });
   };
 
-  handleLogout();
+  useEffect(() => {
+    if (isFocused) {
+      handleLogout();
+    }
+  }, [isFocused]);
 
   return (
     <View flex center>
-      <Text text40>Đăng xuất</Text>
-      <Button
-        label="Đăng xuất"
-        backgroundColor="#007BFF"
-        labelStyle={{ fontWeight: "bold" }}
-        style={styles.editButton}
-        onPress={handleLogout}
-      />
+      <Loading isVisible={true} text="Đăng xuất" />
     </View>
   );
 };
@@ -856,6 +991,35 @@ const DrawerNavigator = ({ navigation }) => {
         }}
         name="HomeScreen"
         component={HomeScreen}
+      />
+      <Drawer.Screen
+        name="ListParkScreen"
+        component={ListParkScreen}
+        options={{
+          drawerLabel: "Danh sách bãi đỗ xe",
+          title: "Danh sách bãi đỗ xe",
+          headerStyle: {
+            backgroundColor: Colors.primary,
+          },
+          headerLeftContainerStyle: {
+            paddingLeft: 10,
+          },
+          drawerIcon: ({ color }) => (
+            <IconView>
+              <TruckIcon color={Colors.primary} />
+            </IconView>
+          ),
+          headerLeft: () => (
+            <TouchableOpacity onPress={() => navigate.goBack()}>
+              <ChevronLeftIcon color={Colors.white} />
+            </TouchableOpacity>
+          ),
+          headerTitleAlign: "center",
+          headerTitleStyle: {
+            color: Colors.white,
+          },
+          drawerActiveBackgroundColor: Colors.primary,
+        }}
       />
       <Drawer.Screen
         name="NotificationsScreen"
@@ -904,6 +1068,7 @@ const DrawerNavigator = ({ navigation }) => {
         component={LogoutScreen}
         options={{
           drawerLabel: "Đăng xuất",
+          headerShown: false,
           drawerIcon: ({ color }) => (
             <IconView>
               <ArrowRightOnRectangleIcon color={Colors.primary} />

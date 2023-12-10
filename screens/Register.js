@@ -14,7 +14,9 @@ import {
   signInWithEmailAndPassword,
 } from "firebase/auth";
 import { useState } from "react";
-import { auth } from "../firebase";
+import { auth, db } from "../firebase";
+import { addDoc, collection, doc, setDoc } from "firebase/firestore";
+import Loading from "./Loading";
 
 export function RegisterScreen({ navigation }) {
   const [email, setEmail] = useState("");
@@ -29,14 +31,20 @@ export function RegisterScreen({ navigation }) {
       return;
     }
 
-    console.log(auth, email, password);
     setLoading(true);
     createUserWithEmailAndPassword(auth, email, password)
       .then((userCredential) => {
-      setLoading(false);
-      // Signed in
+        setLoading(false);
+        // Signed in
         const user = userCredential.user;
-        navigation.navigate("MapScreen");
+        setDoc(doc(db, "users", user.uid), {
+          email: user.email,
+          id: user.uid,
+        }).then((user) => {
+          navigation.navigate("HomeScreen");
+          // ...
+          setLoading(false);
+        });
       })
       .catch((error) => {
         setLoading(false);
@@ -97,6 +105,8 @@ export function RegisterScreen({ navigation }) {
             borderRadius: 12,
             marginTop: 12,
           }}
+          passwordRules="minlength: 6; maxlength: 10;"
+          textContentType="password"
         />
         <TextInput
           placeholder="Xác nhận"
@@ -112,8 +122,15 @@ export function RegisterScreen({ navigation }) {
             borderRadius: 12,
             marginTop: 12,
           }}
+          passwordRules="minlength: 6; maxlength: 10;"
+          textContentType="password"
         />
-        <Button label="Đăng ký" marginT-20 backgroundColor={Colors.primary} onPress={handleRegister} />
+        <Button
+          label="Đăng ký"
+          marginT-20
+          backgroundColor={Colors.primary}
+          onPress={handleRegister}
+        />
 
         <Button
           label="Đăng nhập"

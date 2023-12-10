@@ -15,9 +15,10 @@ import {
   signInWithEmailAndPassword,
 } from "firebase/auth";
 import { useContext, useEffect, useState } from "react";
-import { auth } from "../firebase";
+import { auth, db } from "../firebase";
 import Loading from "./Loading";
 import { AuthContext } from "../context";
+import { addDoc, collection, doc, setDoc } from "firebase/firestore";
 
 export function LoginScreen({ navigation }) {
   const [email, setEmail] = useState("");
@@ -41,7 +42,6 @@ export function LoginScreen({ navigation }) {
       .then((userCredential) => {
         // Signed in
         const user = userCredential.user;
-        console.log(user);
         navigation.navigate("HomeScreen");
         // ...
         setLoading(false);
@@ -105,8 +105,15 @@ export function LoginScreen({ navigation }) {
             borderRadius: 12,
             marginTop: 12,
           }}
+          passwordRules="minlength: 6; maxlength: 10;"
+          textContentType="password"
         />
-        <Button label="Đăng nhập" marginT-20 backgroundColor={Colors.primary}  onPress={handleLogin} />
+        <Button
+          label="Đăng nhập"
+          marginT-20
+          backgroundColor={Colors.primary}
+          onPress={handleLogin}
+        />
 
         <Button
           label="Đăng ký"
