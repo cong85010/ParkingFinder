@@ -94,8 +94,8 @@ const ListParkScreen = ({ navigation }) => {
           },
         ];
         // setPlaces(list);
-        // function writeUserData(userId) {
-        //   set(ref(db, "users/" + userId), {
+        // function writeUserData(user_id) {
+        //   set(ref(db, "users/" + user_id), {
         //     region: {
         //       lat: location.coords.latitude,
         //       lng: location.coords.longitude,

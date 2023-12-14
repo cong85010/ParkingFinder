@@ -69,7 +69,7 @@ import {
 } from "@react-navigation/native";
 import WebView from "react-native-webview";
 import { auth, db } from "./firebase";
-import { get, ref, set } from "firebase/database";
+import { get, query, ref, set } from "firebase/database";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { LoginScreen } from "./screens/Login";
 import { RegisterScreen } from "./screens/Register";
@@ -81,7 +81,18 @@ import { AuthContext } from "./context";
 import { PRICE_TEXT, convertUtcOffset, radiusOptions } from "./contanst";
 import Popover from "react-native-popover-view";
 import ListParkScreen from "./screens/ListParkScreen";
-import { addDoc, collection, doc, getDoc, updateDoc } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  updateDoc,
+  where,
+} from "firebase/firestore";
+import ListHeartScreen from "./screens/ListHeartScreen";
+import ListParkedScreen from "./screens/ListParkedScreen";
 // import MapScreen from "./screens/MapScreen";
 
 Colors.loadColors({
@@ -163,7 +174,10 @@ export function MapScreen({ route, navigation }) {
     moveNewLocation,
     updateUser,
     updateLocationMove,
+    favorites,
+    fetchFavorites,
   } = useContext(AuthContext);
+
   const mapRef = useRef(null);
   const [viewLocation, setViewLocation] = useState({
     latitude: 0,
@@ -223,8 +237,8 @@ export function MapScreen({ route, navigation }) {
             },
           },
         ];
-        // function writeUserData(userId) {
-        //   set(ref(db, "users/" + userId), {
+        // function writeUserData(user_id) {
+        //   set(ref(db, "users/" + user_id), {
         //     region: {
         //       lat: location.coords.latitude,
         //       lng: location.coords.longitude,
@@ -367,65 +381,79 @@ export function MapScreen({ route, navigation }) {
     if (!user_id) return;
 
     setLoadingDialog(true);
-    const isFavorited = currentUser?.favorite?.indexOf(place_id);
-    const favorite = currentUser?.favorite || [];
-    const docRef = doc(db, "users", user_id);
+    const isFavorited = favorites.findIndex(
+      (item) => item?.place_id === place_id
+    );
 
     let message = "";
     if (isFavorited === -1) {
-      favorite.push(place_id);
+      await addDoc(collection(db, "favorites"), {
+        user_id: user_id,
+        place_id,
+        vicinity: locationMove?.vicinity,
+        name: locationMove?.name,
+        formatted_phone_number: locationMove?.formatted_phone_number,
+        weekday_text: locationMove?.opening_hours?.weekday_text,
+      });
       message = "Đã thêm vào danh sách yêu thích";
     } else {
-      favorite.splice(isFavorited, 1);
+      await deleteDoc(doc(db, "favorites", favorites[isFavorited].id));
       message = "Đã xóa khỏi danh sách yêu thích";
     }
 
-    await updateDoc(docRef, {
-      favorite,
-    });
-    updateUser("favorite", favorite);
+    fetchFavorites();
     alert(message);
     setLoadingDialog(false);
   };
 
   const handleMoveToPark = async () => {
-    setLoadingDialog(true);
-    const collectionRef = collection(db, "parkings");
+    try {
+      setLoadingDialog(true);
+      const collectionRef = collection(db, "parkings");
 
-    const ref = await addDoc(collectionRef, {
-      userId: currentUser?.id,
-      placeId: locationMove?.place_id,
-      name: locationMove?.name,
-      address: locationMove?.vicinity,
-      latitude: locationMove?.geometry?.location?.lat,
-      longitude: locationMove?.geometry?.location?.lng,
-      timeStart: locationMove?.timeStart,
-      timeEnd: new Date().getTime(),
-      timeFinish: null,
-      status: "moving",
-    });
+      const newParking = {
+        user_id: currentUser?.id,
+        place_id: locationMove?.place_id,
+        name: locationMove?.name,
+        vicinity: locationMove?.vicinity,
+        latitude: locationMove?.geometry?.location?.lat,
+        longitude: locationMove?.geometry?.location?.lng,
+        timeStart: locationMove?.timeStart,
+        timeEnd: new Date().getTime(),
+        timeFinish: null,
+        status: "moving",
+      };
+      const ref = await addDoc(collectionRef, newParking);
 
-    updateLocationMove("parkingId", ref.id);
-    setLoadingDialog(false);
-    setIsVisible(false);
+      moveNewLocation({
+        parking_id: ref.id,
+        ...newParking,
+      });
+      setLoadingDialog(false);
+      setIsVisible(false);
+    } catch (error) {
+      Alert.alert("Lỗi", "Hệ thống quá tải, thử lại sau!!!");
+    }
   };
 
   const handleFinishPark = async () => {
     setLoadingDialog(true);
-    const docRef = doc(db, "parkings", locationMove?.parkingId);
+    const docRef = doc(db, "parkings", locationMove?.parking_id);
 
     await updateDoc(docRef, {
       timeEnd: new Date().getTime(),
       status: "parking",
     });
 
-    alert("Đã đỗ xe thành công");
+    Alert.alert("Thông báo", "Đã đỗ xe thành công");
     setLoadingDialog(false);
+    setIsVisible(false);
+    moveNewLocation({});
   };
 
   const handleCancelPark = async () => {
     setLoadingDialog(true);
-    const docRef = doc(db, "parkings", locationMove?.parkingId);
+    const docRef = doc(db, "parkings", locationMove?.parking_id);
 
     await updateDoc(docRef, {
       timeEnd: new Date().getTime(),
@@ -501,9 +529,13 @@ export function MapScreen({ route, navigation }) {
             Parking
           </Text>
           <TouchableOpacity
-            onPress={() => navigation.navigate("NotificationsScreen")}
+            onPress={() => navigation.navigate("ListParkedScreen")}
+            style={{ position: 'relative', top: -5}}
           >
-            <BellIcon color={Colors.$textWhite} />
+            <Image
+              width={30}
+              source={require("./assets/parked-car-white.png")}
+            />
           </TouchableOpacity>
         </View>
         <View
@@ -568,7 +600,7 @@ export function MapScreen({ route, navigation }) {
             showsTraffic={false}
             userLocationPriority="high"
           >
-            {locationMove?.place_id ? (
+            {locationMove?.status === "moving" ? (
               <MapViewDirections
                 origin={region}
                 destination={locationMove}
@@ -604,7 +636,7 @@ export function MapScreen({ route, navigation }) {
             />
           </MapView>
         )}
-        {locationMove?.place_id ? null : (
+        {locationMove?.status === "moving" ? null : (
           <View
             row
             style={{
@@ -648,7 +680,7 @@ export function MapScreen({ route, navigation }) {
             <LifebuoyIcon color={Colors.$textPrimary} />
           </TouchableOpacity>
         </View>
-        {locationMove?.place_id ? (
+        {locationMove?.status === "moving" ? (
           <>
             <Button
               marginT-20
@@ -839,7 +871,9 @@ export function MapScreen({ route, navigation }) {
               paddingHorizontal: 5,
             }}
           >
-            {currentUser?.favorite?.indexOf(locationMove?.place_id) !== -1 ? (
+            {favorites.findIndex(
+              (item) => item?.place_id === locationMove?.place_id
+            ) !== -1 ? (
               <HeartIconS color={Colors.$textDanger} />
             ) : (
               <HeartIcon color={Colors.black} />
@@ -879,14 +913,34 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [pending, setPending] = useState(true);
   const [locationMove, setLocationMove] = useState({});
+  const [favorites, setFavorites] = useState([]);
 
-  function fetchUser(userID) {
-    getDoc(doc(db, "users", userID)).then((doc) => {
+  async function fetchFavorites(user_id = currentUser?.id) {
+    const q = query(
+      collection(db, "favorites"),
+      where("user_id", "==", user_id)
+    );
+    const querySnapshot = await getDocs(q);
+    const data = [];
+    querySnapshot.forEach((doc) => {
+      // doc.data() is never undefined for query doc snapshots
+      console.log(doc.id, " => ", doc.data());
+      data.push({
+        id: doc.id,
+        ...doc.data(),
+      });
+    });
+    setFavorites(data);
+  }
+
+  function fetchUser(user_id) {
+    getDoc(doc(db, "users", user_id)).then((doc) => {
       if (doc.exists()) {
         setCurrentUser({
           id: doc.id,
           ...doc.data(),
         });
+        fetchFavorites(doc.id);
       } else {
         alert("Tài khoản không tồn tại");
       }
@@ -937,6 +991,8 @@ export const AuthProvider = ({ children }) => {
         fetchUser,
         updateUser,
         updateLocationMove,
+        favorites,
+        fetchFavorites,
       }}
     >
       {children}
@@ -993,11 +1049,11 @@ const DrawerNavigator = ({ navigation }) => {
         component={HomeScreen}
       />
       <Drawer.Screen
-        name="ListParkScreen"
-        component={ListParkScreen}
+        name="ListParkedScreen"
+        component={ListParkedScreen}
         options={{
-          drawerLabel: "Danh sách bãi đỗ xe",
-          title: "Danh sách bãi đỗ xe",
+          drawerLabel: "Lịch sử",
+          title: "Lịch sử Bãi đỗ xe",
           headerStyle: {
             backgroundColor: Colors.primary,
           },
@@ -1006,7 +1062,7 @@ const DrawerNavigator = ({ navigation }) => {
           },
           drawerIcon: ({ color }) => (
             <IconView>
-              <TruckIcon color={Colors.primary} />
+              <Image width={30} source={require("./assets/parked-car.png")} />
             </IconView>
           ),
           headerLeft: () => (
@@ -1022,6 +1078,35 @@ const DrawerNavigator = ({ navigation }) => {
         }}
       />
       <Drawer.Screen
+        name="ListHeartScreen"
+        component={ListHeartScreen}
+        options={{
+          drawerLabel: "Yêu thích",
+          title: "Bãi đỗ xe yêu thích",
+          headerStyle: {
+            backgroundColor: Colors.primary,
+          },
+          headerLeftContainerStyle: {
+            paddingLeft: 10,
+          },
+          drawerIcon: ({ color }) => (
+            <IconView>
+              <HeartIconS color={Colors.primary} />
+            </IconView>
+          ),
+          headerLeft: () => (
+            <TouchableOpacity onPress={() => navigate.goBack()}>
+              <ChevronLeftIcon color={Colors.white} />
+            </TouchableOpacity>
+          ),
+          headerTitleAlign: "center",
+          headerTitleStyle: {
+            color: Colors.white,
+          },
+          drawerActiveBackgroundColor: Colors.primary,
+        }}
+      />
+      {/* <Drawer.Screen
         name="NotificationsScreen"
         component={NotificationsScreen}
         options={{
@@ -1041,7 +1126,7 @@ const DrawerNavigator = ({ navigation }) => {
             </IconView>
           ),
         }}
-      />
+      /> */}
       <Drawer.Screen
         name="ProfileScreen"
         component={ProfileScreen}
