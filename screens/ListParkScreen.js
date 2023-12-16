@@ -58,53 +58,6 @@ const ListParkScreen = ({ navigation }) => {
         location.coords.longitude = 106.68884075965167;
 
         const { latitude, longitude } = location.coords;
-        const list = [
-          {
-            name: "Bãi gửi xe Trường Đại học Điện Lực",
-            rating: 4.7,
-            user_ratings_total: 3,
-            vicinity:
-              "47Phạm Văn Đồng, Đối diện cổng sau BCA, 47Phạm Văn Đồng, Mai Dịch",
-            status: "OK",
-            business_status: "OPERATIONAL",
-            time_start: "07:00",
-            time_end: "23:00",
-            geometry: {
-              location: {
-                lat: 21.047437660287343,
-                lng: 105.78520944321211,
-              },
-            },
-          },
-
-          {
-            name: "Bãi gửi xe Trường Mần Non Sao Mai",
-            rating: 4.7,
-            user_ratings_total: 3,
-            vicinity: "47Phạm Văn Đồng, Đối diện",
-            status: "OK",
-            business_status: "OPERATIONAL",
-            opening_hours: { open_now: true },
-            geometry: {
-              location: {
-                lat: 10.831743253209897,
-                lng: 106.68665889081245,
-              },
-            },
-          },
-        ];
-        // setPlaces(list);
-        // function writeUserData(user_id) {
-        //   set(ref(db, "users/" + user_id), {
-        //     region: {
-        //       lat: location.coords.latitude,
-        //       lng: location.coords.longitude,
-        //       radius,
-        //     },
-        //   });
-        // }
-
-        // writeUserData("190002");
 
         console.log("Loadinggg");
         const apiKey = GOOGLE_MAPS_API_KEY; // Replace with your Google Maps API key
@@ -200,7 +153,7 @@ const ListParkScreen = ({ navigation }) => {
             height: "100%",
             paddingVertical: 10,
             paddingHorizontal: 20,
-            width: "60%",
+            flexGrow: 1,
             borderRadius: 999,
           }}
           clearButtonMode="always"

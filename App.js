@@ -177,6 +177,7 @@ export function MapScreen({ route, navigation }) {
     favorites,
     fetchFavorites,
   } = useContext(AuthContext);
+  const isFocused = useIsFocused();
 
   const mapRef = useRef(null);
   const [viewLocation, setViewLocation] = useState({
@@ -202,64 +203,23 @@ export function MapScreen({ route, navigation }) {
         setLoading(true);
         setPlaces([]);
 
-        const list = [
-          {
-            name: "Bãi gửi xe Trường Đại học Điện Lực",
-            rating: 4.7,
-            user_ratings_total: 3,
-            vicinity:
-              "47Phạm Văn Đồng, Đối diện cổng sau BCA, 47Phạm Văn Đồng, Mai Dịch",
-            status: "OK",
-            business_status: "OPERATIONAL",
-            time_start: "07:00",
-            time_end: "23:00",
-            geometry: {
-              location: {
-                lat: 21.047437660287343,
-                lng: 105.78520944321211,
-              },
-            },
-          },
+        let { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          console.error("Permission to access location was denied");
+          return;
+        }
 
-          {
-            name: "Bãi gửi xe Trường Mần Non Sao Mai",
-            rating: 4.7,
-            user_ratings_total: 3,
-            vicinity: "47Phạm Văn Đồng, Đối diện",
-            status: "OK",
-            business_status: "OPERATIONAL",
-            opening_hours: { open_now: true },
-            geometry: {
-              location: {
-                lat: 10.831743253209897,
-                lng: 106.68665889081245,
-              },
-            },
-          },
-        ];
-        // function writeUserData(user_id) {
-        //   set(ref(db, "users/" + user_id), {
-        //     region: {
-        //       lat: location.coords.latitude,
-        //       lng: location.coords.longitude,
-        //       radius,
-        //     },
-        //   });
-        // }
+        console.log("Loadinggg");
+        const apiKey = GOOGLE_MAPS_API_KEY; // Replace with your Google Maps API key
+        const response = await fetch(
+          `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${viewLocation.latitude},${viewLocation.longitude}&radius=${radius}&type=parking&key=${apiKey}`
+        );
+        const result = await response.json();
 
-        // writeUserData("190002");
-
-        // console.log("Loadinggg");
-        // const apiKey = GOOGLE_MAPS_API_KEY; // Replace with your Google Maps API key
-        // const response = await fetch(
-        //   `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${viewLocation.latitude},${viewLocation.longitude}&radius=${radius}&type=parking&key=${apiKey}`
-        // );
-        // const result = await response.json();
-
-        // if (result.status === "OK" && result.results.length > 0) {
-        //   setPlaces(result.results);
-        // }
-        // console.log("result", result);
+        if (result.status === "OK" && result.results.length > 0) {
+          setPlaces(result.results);
+        }
+        console.log("result", result);
       } catch (error) {
         console.error(error);
       } finally {
@@ -267,7 +227,7 @@ export function MapScreen({ route, navigation }) {
       }
     };
 
-    if (viewLocation.latitude !== 0) {
+    if (viewLocation) {
       initData();
     }
   }, [radius, viewLocation, reload]);
@@ -289,7 +249,29 @@ export function MapScreen({ route, navigation }) {
   };
 
   const handleMarkerPress = (place) => {
-    if (locationMove?.place_id) return;
+    if (locationMove?.status === "moving") {
+      if (
+        locationMove?.parking_id &&
+        locationMove?.parking_id === place?.parking_id
+      )
+        return;
+
+      Alert.alert(
+        "Thông báo",
+        "Bạn đang di chuyển đến bãi đỗ xe khác, hãy đến bãi đỗ xe này trước khi chọn bãi đỗ xe khác"
+      );
+      return;
+    }
+
+    if (place?.parking_id && place?.status === "moving") {
+      moveNewLocation(place);
+      const isNewMarker = places.every((p) => p.place_id !== place?.place_id);
+      if (isNewMarker) {
+        setPlaces((prev) => [...prev, place]);
+      }
+
+      return;
+    }
 
     const coordinate = {
       latitude: place?.geometry?.location?.lat,
@@ -299,9 +281,10 @@ export function MapScreen({ route, navigation }) {
       .then((response) => {
         console.log("full", { ...coordinate, ...place, ...response });
         setIsVisible(true);
+        setLoadingDialog(false);
         moveNewLocation({ ...coordinate, ...place, ...response });
         const isNewMarker = places.every(
-          (p) => p.place_id !== selectedMove.place_id
+          (p) => p.place_id !== selectedMove?.place_id
         );
         if (isNewMarker) {
           setPlaces((prev) => [...prev, place]);
@@ -312,11 +295,19 @@ export function MapScreen({ route, navigation }) {
       });
   };
 
+  function cancelDialog() {
+    setIsVisible(false);
+    moveNewLocation({});
+  }
+
   useEffect(() => {
-    if (selectedMove) {
+    if (selectedMove && isFocused) {
+      console.log('====================================');
+      console.log("selectedMove", selectedMove);
+      console.log('====================================');
       handleMarkerPress(selectedMove);
     }
-  }, [selectedMove]);
+  }, [selectedMove, isFocused]);
 
   const onPressSearch = (data, details) => {
     const latitude = details?.geometry?.location?.lat;
@@ -374,36 +365,41 @@ export function MapScreen({ route, navigation }) {
   };
 
   const handleSaveHeart = async () => {
-    const place_id = locationMove?.place_id;
-    if (!place_id) return;
+    try {
+      const place_id = locationMove?.place_id;
+      if (!place_id) return;
 
-    const user_id = currentUser?.id;
-    if (!user_id) return;
+      const user_id = currentUser?.id;
+      if (!user_id) return;
 
-    setLoadingDialog(true);
-    const isFavorited = favorites.findIndex(
-      (item) => item?.place_id === place_id
-    );
+      setLoadingDialog(true);
+      const isFavorited = favorites.findIndex(
+        (item) => item?.place_id === place_id
+      );
 
-    let message = "";
-    if (isFavorited === -1) {
-      await addDoc(collection(db, "favorites"), {
-        user_id: user_id,
-        place_id,
-        vicinity: locationMove?.vicinity,
-        name: locationMove?.name,
-        formatted_phone_number: locationMove?.formatted_phone_number,
-        weekday_text: locationMove?.opening_hours?.weekday_text,
-      });
-      message = "Đã thêm vào danh sách yêu thích";
-    } else {
-      await deleteDoc(doc(db, "favorites", favorites[isFavorited].id));
-      message = "Đã xóa khỏi danh sách yêu thích";
+      let message = "";
+      if (isFavorited === -1) {
+        await addDoc(collection(db, "favorites"), {
+          user_id: user_id,
+          place_id,
+          vicinity: locationMove?.vicinity,
+          name: locationMove?.name,
+          formatted_phone_number: locationMove?.formatted_phone_number,
+          weekday_text: locationMove?.opening_hours?.weekday_text,
+        });
+        message = "Đã thêm vào danh sách yêu thích";
+      } else {
+        await deleteDoc(doc(db, "favorites", favorites[isFavorited].id));
+        message = "Đã xóa khỏi danh sách yêu thích";
+      }
+
+      fetchFavorites();
+      alert(message);
+      setLoadingDialog(false);
+    } catch (error) {
+      setLoadingDialog(false);
+      Alert.alert("Lỗi", "Hệ thống quá tải, thử lại sau!!!");
     }
-
-    fetchFavorites();
-    alert(message);
-    setLoadingDialog(false);
   };
 
   const handleMoveToPark = async () => {
@@ -433,36 +429,47 @@ export function MapScreen({ route, navigation }) {
       setIsVisible(false);
     } catch (error) {
       Alert.alert("Lỗi", "Hệ thống quá tải, thử lại sau!!!");
+      setLoadingDialog(false);
     }
   };
 
   const handleFinishPark = async () => {
-    setLoadingDialog(true);
-    const docRef = doc(db, "parkings", locationMove?.parking_id);
+    try {
+      setLoadingDialog(true);
+      const docRef = doc(db, "parkings", locationMove?.parking_id);
 
-    await updateDoc(docRef, {
-      timeEnd: new Date().getTime(),
-      status: "parking",
-    });
+      await updateDoc(docRef, {
+        timeEnd: new Date().getTime(),
+        status: "parking",
+      });
 
-    Alert.alert("Thông báo", "Đã đỗ xe thành công");
-    setLoadingDialog(false);
-    setIsVisible(false);
-    moveNewLocation({});
+      Alert.alert("Thông báo", "Đã đỗ xe tại đây");
+      setLoadingDialog(false);
+      setIsVisible(false);
+      moveNewLocation({});
+    } catch (error) {
+      Alert.alert("Lỗi", "Hệ thống quá tải, thử lại sau!!!");
+      setLoadingDialog(false);
+    }
   };
 
   const handleCancelPark = async () => {
-    setLoadingDialog(true);
-    const docRef = doc(db, "parkings", locationMove?.parking_id);
+    try {
+      setLoadingDialog(true);
+      const docRef = doc(db, "parkings", locationMove?.parking_id);
 
-    await updateDoc(docRef, {
-      timeEnd: new Date().getTime(),
-      status: "cancel",
-    });
+      await updateDoc(docRef, {
+        timeEnd: new Date().getTime(),
+        status: "cancel",
+      });
 
-    alert("Đã hủy xe thành công");
-    moveNewLocation({});
-    setLoadingDialog(false);
+      alert("Đã hủy xe thành công");
+      moveNewLocation({});
+      setLoadingDialog(false);
+    } catch (error) {
+      Alert.alert("Lỗi", "Hệ thống quá tải, thử lại sau!!!");
+      setLoadingDialog(false);
+    }
   };
 
   const handleReload = async () => {
@@ -525,12 +532,14 @@ export function MapScreen({ route, navigation }) {
           <TouchableOpacity onPress={() => navigation.openDrawer()}>
             <Bars3Icon color={Colors.$textWhite} />
           </TouchableOpacity>
-          <Text text60 $textWhite>
-            Parking
-          </Text>
+          <TouchableOpacity onPress={() => setReload(!reload)}>
+            <Text text60 $textWhite>
+              Parking
+            </Text>
+          </TouchableOpacity>
           <TouchableOpacity
             onPress={() => navigation.navigate("ListParkedScreen")}
-            style={{ position: 'relative', top: -5}}
+            style={{ position: "relative", top: -5 }}
           >
             <Image
               width={30}
@@ -549,19 +558,11 @@ export function MapScreen({ route, navigation }) {
         >
           <GooglePlacesInput onPress={onPressSearch} location={viewLocation} />
         </View>
-      </View>
-      <SafeAreaView
-        style={{
-          width: "100%",
-          flex: 1,
-          height: Dimensions.get("window").height,
-        }}
-      >
         <View
           style={{
             width: "100%",
             position: "relative",
-            top: 100,
+            top: 80,
             zIndex: 9,
           }}
         >
@@ -582,6 +583,14 @@ export function MapScreen({ route, navigation }) {
             ))}
           </ScrollView>
         </View>
+      </View>
+      <SafeAreaView
+        style={{
+          width: "100%",
+          flex: 1,
+          height: Dimensions.get("window").height,
+        }}
+      >
         {region.latitude === 0 ? (
           <View center flex>
             <Button
@@ -681,14 +690,39 @@ export function MapScreen({ route, navigation }) {
           </TouchableOpacity>
         </View>
         {locationMove?.status === "moving" ? (
-          <>
+          <View
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              width: "100%",
+              minHeight: 150,
+              borderTopWidth: 1,
+              borderTopColor: Colors.$textWhite,
+              backgroundColor: Colors.$textWhite,
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              paddingBottom: 20
+            }}
+          >
+            <View gap-5 paddingH-10 paddingV-10>
+              <View row>
+                <Text text80R>Điểm đến: </Text>
+                <Text text80R>{locationMove?.name}</Text>
+              </View>
+              <View row>
+                <Text text80R>Địa chỉ: </Text>
+                <Text text80R style={{width: '70%'}}>{locationMove?.vicinity}</Text>
+              </View>
+            </View>
+            <View
+              style={{ height: 1, backgroundColor: Colors.$iconDisabled }}
+            />
+            <View row gap-10>
             <Button
               marginT-20
+              marginL-10
               style={{
-                position: "absolute",
-                zIndex: 99,
-                bottom: 40,
-                left: 10,
                 width: 70,
               }}
               label="Hủy"
@@ -698,19 +732,16 @@ export function MapScreen({ route, navigation }) {
             />
             <Button
               style={{
-                position: "absolute",
-                zIndex: 99,
-                bottom: 40,
-                left: 120,
                 paddingHorizontal: 20,
                 width: 250,
               }}
               marginT-20
-              label="Đã đỗ xe"
+              label="Đỗ xe tại đây"
               backgroundColor={Colors.primary}
               onPress={handleFinishPark}
             />
-          </>
+            </View>
+          </View>
         ) : (
           <View
             row
@@ -768,8 +799,7 @@ export function MapScreen({ route, navigation }) {
       <Loading isVisible={loading} text="Loading" />
       <Dialog
         visible={isVisible}
-        onDismiss={() => setIsVisible(false)}
-        onDialogDismissed={() => setIsVisible(false)}
+        onDismiss={cancelDialog}
         panDirection={PanningProvider.Directions.DOWN}
         useSafeArea
         bottom={true}
@@ -1062,7 +1092,7 @@ const DrawerNavigator = ({ navigation }) => {
           },
           drawerIcon: ({ color }) => (
             <IconView>
-              <Image width={30} source={require("./assets/parked-car.png")} />
+              <Image width={20} source={require("./assets/parked-car.png")} />
             </IconView>
           ),
           headerLeft: () => (

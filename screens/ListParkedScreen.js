@@ -52,7 +52,8 @@ const ListParkedScreen = ({ navigation }) => {
         setParkings([]);
         const q = query(
           collection(db, "parkings"),
-          where("user_id", "==", currentUser.id)
+          where("user_id", "==", currentUser.id),
+          orderBy("timeStart", "desc")
         );
 
         const querySnapshot = await getDocs(q);
@@ -62,6 +63,7 @@ const ListParkedScreen = ({ navigation }) => {
           // doc.data() is never undefined for query doc snapshots
           data.push({
             id: doc.id,
+            parking_id: doc.id,
             ...doc.data(),
           });
         });
@@ -75,8 +77,12 @@ const ListParkedScreen = ({ navigation }) => {
       }
     };
 
-    if (currentUser) {
+    if (isFocused && currentUser) {
       initData();
+    }
+
+    if(!isFocused) {
+      setParkings([]);
     }
   }, [isFocused, reload]);
 
@@ -222,7 +228,7 @@ const ListParkedScreen = ({ navigation }) => {
     }
   };
 
-  const renderButtons = (status, parking_id) => {
+  const renderButtons = (status, parking_id, parking) => {
     const commonStyles = {
       padding: 5,
       borderRadius: 999,
@@ -242,8 +248,9 @@ const ListParkedScreen = ({ navigation }) => {
               ...commonStyles,
             }}
             onPress={() => {
+              
               navigation.navigate("MapScreen", {
-                selectedMove: place,
+                selectedMove: parking,
               });
             }}
           >
@@ -395,7 +402,7 @@ const ListParkedScreen = ({ navigation }) => {
                 padding: 5,
               }}
             >
-              {renderButtons(parking?.status, parking?.id)}
+              {renderButtons(parking?.status, parking?.id, parking)}
             </View>
           </Card>
         ))}
