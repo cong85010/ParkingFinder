@@ -1,4 +1,4 @@
-import { Button, Colors, Text, View } from "react-native-ui-lib";
+import { Button, Checkbox, Colors, Text, View } from "react-native-ui-lib";
 import {
   StyleSheet,
   Dimensions,
@@ -8,6 +8,7 @@ import {
   Alert,
   TextInput,
   Image,
+  TouchableOpacity,
 } from "react-native";
 import {
   createUserWithEmailAndPassword,
@@ -17,6 +18,8 @@ import { useState } from "react";
 import { auth, db } from "../firebase";
 import { addDoc, collection, doc, setDoc } from "firebase/firestore";
 import Loading from "./Loading";
+import { MapPinIcon, XCircleIcon } from "react-native-heroicons/solid";
+import ListParkOwnerModal from "../components/ListParkOwnerModal";
 
 export function RegisterScreen({ navigation }) {
   const [email, setEmail] = useState("");
@@ -24,26 +27,79 @@ export function RegisterScreen({ navigation }) {
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [errorMessage, setErrorMessage] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
+  const [visibleModal, setVisibleModal] = useState(false);
+  const [parking, setParking] = useState({});
+
+  const handleClose = () => {
+    setVisibleModal(false);
+  };
+
+  const handleSelected = (data) => {
+    setParking(data);
+    setVisibleModal(false);
+  };
 
   const handleRegister = () => {
+    if (email === "") {
+      setErrorMessage("Vui lòng nhập email");
+      return;
+    }
+
+    if (password === "" || password.length < 6) {
+      setErrorMessage("Vui lòng nhập mật khẩu và lớn hơn 5 kí tự");
+      return;
+    }
+
     if (password !== passwordConfirm) {
-      setErrorMessage("Passwords do not match");
+      setErrorMessage("Vui lòng nhập đúng mật khẩu");
+      return;
+    }
+
+    if (isOwner && !parking?.place_id) {
+      setErrorMessage("Vui lòng chọn bãi đỗ xe của bạn");
       return;
     }
 
     setLoading(true);
+    setErrorMessage("");
     createUserWithEmailAndPassword(auth, email, password)
       .then((userCredential) => {
         setLoading(false);
         // Signed in
         const user = userCredential.user;
+        const place = {
+          place_id: parking?.place_id,
+          place_name: parking?.name,
+          place_vicinity: parking?.vicinity,
+        };
         setDoc(doc(db, "users", user.uid), {
           email: user.email,
           id: user.uid,
-        }).then((user) => {
-          navigation.navigate("HomeScreen");
-          // ...
-          setLoading(false);
+          role: isOwner ? "owner" : "user",
+          status: isOwner ? "deactive" : "active",
+          createdAt: new Date().getTime(),
+          ...(isOwner ? place : {})
+        }).then((response) => {
+          if (isOwner === false) {
+            navigation.navigate("HomeScreen");
+            setLoading(false);
+          } else {
+            setDoc(doc(db, "places", parking?.place_id), {
+              user_id: user.uid,
+              place_id: parking?.place_id,
+              vicinity: parking?.vicinity,
+              name: parking?.name,
+              createdAt: new Date().getTime(),
+            }).then(() => {
+              Alert.alert(
+                "Thông báo",
+                "Đăng ký thành công.\nVui lòng chờ quản trị viên phê duyệt!"
+              );
+              auth.signOut();
+              setLoading(false);
+            });
+          }
         });
       })
       .catch((error) => {
@@ -77,7 +133,11 @@ export function RegisterScreen({ navigation }) {
         <Text text50 center marginB-20>
           Đăng ký
         </Text>
-        {errorMessage && <Text color={Colors.$textDanger}>{errorMessage}</Text>}
+        {errorMessage && (
+          <Text marginB-10 color={Colors.$textDanger}>
+            {errorMessage}
+          </Text>
+        )}
         <TextInput
           placeholder="Email"
           onChangeText={setEmail}
@@ -125,6 +185,70 @@ export function RegisterScreen({ navigation }) {
           passwordRules="minlength: 6; maxlength: 10;"
           textContentType="password"
         />
+        <View
+          row
+          centerV
+          style={{ justifyContent: "flex-end" }}
+          marginB-10
+          marginT-10
+        >
+          <Text text70BO marginR-10>
+            Chủ bãi xe
+          </Text>
+          <Checkbox
+            center
+            color={Colors.primary}
+            value={isOwner}
+            onValueChange={() => setIsOwner(!isOwner)}
+          />
+        </View>
+        {isOwner ? (
+          <View row centerV spread marginT-10>
+            <TextInput
+              placeholder="Tên bãi xe"
+              value={parking?.name}
+              autoCapitalize="none"
+              style={{
+                borderColor: Colors.$textDisabled,
+                borderWidth: 1,
+                paddingHorizontal: 20,
+                height: 50,
+                borderRadius: 12,
+                flex: 1,
+              }}
+              editable={false}
+              selectTextOnFocus={false}
+            />
+            <TouchableOpacity
+              onPress={() => setParking({})}
+              style={{
+                backgroundColor: Colors.primary,
+                height: 50,
+                width: 50,
+                justifyContent: "center",
+                alignItems: "center",
+                borderRadius: 12,
+                marginLeft: 10,
+              }}
+            >
+              <XCircleIcon color={Colors.$backgroundDark} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setVisibleModal(true)}
+              style={{
+                backgroundColor: Colors.primary,
+                height: 50,
+                width: 50,
+                justifyContent: "center",
+                alignItems: "center",
+                borderRadius: 12,
+                marginLeft: 10,
+              }}
+            >
+              <MapPinIcon color={Colors.$iconDanger} />
+            </TouchableOpacity>
+          </View>
+        ) : null}
         <Button
           label="Đăng ký"
           marginT-20
@@ -141,6 +265,11 @@ export function RegisterScreen({ navigation }) {
         />
       </View>
       <Loading isVisible={loading} text="Loading..." />
+      <ListParkOwnerModal
+        visible={visibleModal}
+        onDismiss={handleClose}
+        onSelected={handleSelected}
+      />
     </SafeAreaView>
   );
 }

@@ -55,6 +55,7 @@ import {
   MapPinIcon,
   NewspaperIcon,
   PhoneIcon,
+  RectangleStackIcon,
   StarIcon,
   TruckIcon,
   UserIcon,
@@ -93,6 +94,8 @@ import {
 } from "firebase/firestore";
 import ListHeartScreen from "./screens/ListHeartScreen";
 import ListParkedScreen from "./screens/ListParkedScreen";
+import AdminScreen from "./screens/AdminScreen";
+import OwnerScreen from "./screens/OwnerScreen";
 // import MapScreen from "./screens/MapScreen";
 
 Colors.loadColors({
@@ -228,7 +231,7 @@ export function MapScreen({ route, navigation }) {
     };
 
     if (viewLocation) {
-      initData();
+      // initData();
     }
   }, [radius, viewLocation, reload]);
 
@@ -248,7 +251,7 @@ export function MapScreen({ route, navigation }) {
     }
   };
 
-  const handleMarkerPress = (place) => {
+  const handleMarkerPress = async (place) => {
     if (locationMove?.status === "moving") {
       if (
         locationMove?.parking_id &&
@@ -277,16 +280,24 @@ export function MapScreen({ route, navigation }) {
       latitude: place?.geometry?.location?.lat,
       longitude: place?.geometry?.location?.lng,
     };
+
+    const placeDoc = await getDoc(doc(db, "places", place.place_id));
+    const placeOwner = placeDoc.data() || {};
+
     getPlaceDetail(place.place_id)
       .then((response) => {
-        console.log("full", { ...coordinate, ...place, ...response });
         setIsVisible(true);
         setLoadingDialog(false);
-        moveNewLocation({ ...coordinate, ...place, ...response });
+        moveNewLocation({
+          ...coordinate,
+          ...place,
+          ...response,
+          ...placeOwner,
+        });
         const isNewMarker = places.every(
           (p) => p.place_id !== selectedMove?.place_id
         );
-        if (isNewMarker) {
+        if (selectedMove?.place_id && isNewMarker) {
           setPlaces((prev) => [...prev, place]);
         }
       })
@@ -302,9 +313,9 @@ export function MapScreen({ route, navigation }) {
 
   useEffect(() => {
     if (selectedMove && isFocused) {
-      console.log('====================================');
+      console.log("====================================");
       console.log("selectedMove", selectedMove);
-      console.log('====================================');
+      console.log("====================================");
       handleMarkerPress(selectedMove);
     }
   }, [selectedMove, isFocused]);
@@ -558,7 +569,8 @@ export function MapScreen({ route, navigation }) {
         >
           <GooglePlacesInput onPress={onPressSearch} location={viewLocation} />
         </View>
-        <View
+      </View>
+      <View
           style={{
             width: "100%",
             position: "relative",
@@ -583,7 +595,6 @@ export function MapScreen({ route, navigation }) {
             ))}
           </ScrollView>
         </View>
-      </View>
       <SafeAreaView
         style={{
           width: "100%",
@@ -591,6 +602,7 @@ export function MapScreen({ route, navigation }) {
           height: Dimensions.get("window").height,
         }}
       >
+        
         {region.latitude === 0 ? (
           <View center flex>
             <Button
@@ -702,7 +714,7 @@ export function MapScreen({ route, navigation }) {
               backgroundColor: Colors.$textWhite,
               borderTopLeftRadius: 24,
               borderTopRightRadius: 24,
-              paddingBottom: 20
+              paddingBottom: 20,
             }}
           >
             <View gap-5 paddingH-10 paddingV-10>
@@ -712,34 +724,36 @@ export function MapScreen({ route, navigation }) {
               </View>
               <View row>
                 <Text text80R>Địa chỉ: </Text>
-                <Text text80R style={{width: '70%'}}>{locationMove?.vicinity}</Text>
+                <Text text80R style={{ width: "70%" }}>
+                  {locationMove?.vicinity}
+                </Text>
               </View>
             </View>
             <View
               style={{ height: 1, backgroundColor: Colors.$iconDisabled }}
             />
             <View row gap-10>
-            <Button
-              marginT-20
-              marginL-10
-              style={{
-                width: 70,
-              }}
-              label="Hủy"
-              labelStyle={{ color: Colors.$textDanger }}
-              backgroundColor={Colors.$backgroundDangerLight}
-              onPress={handleCancelPark}
-            />
-            <Button
-              style={{
-                paddingHorizontal: 20,
-                width: 250,
-              }}
-              marginT-20
-              label="Đỗ xe tại đây"
-              backgroundColor={Colors.primary}
-              onPress={handleFinishPark}
-            />
+              <Button
+                marginT-20
+                marginL-10
+                style={{
+                  width: 70,
+                }}
+                label="Hủy"
+                labelStyle={{ color: Colors.$textDanger }}
+                backgroundColor={Colors.$backgroundDangerLight}
+                onPress={handleCancelPark}
+              />
+              <Button
+                style={{
+                  paddingHorizontal: 20,
+                  width: 250,
+                }}
+                marginT-20
+                label="Đỗ xe tại đây"
+                backgroundColor={Colors.primary}
+                onPress={handleFinishPark}
+              />
             </View>
           </View>
         ) : (
@@ -857,9 +871,16 @@ export function MapScreen({ route, navigation }) {
             <LockClosedIcon color={Colors.$iconDanger} />
           )}
           <Text text80R>
-            Trạng thái:
+            Trạng thái: {' '}
             {locationMove?.opening_hours?.open_now ? "Mở cửa" : "Đóng cửa"}
           </Text>
+          <View row centerV  marginL-10 gap-5>
+            <RectangleStackIcon color={locationMove?.occupied < locationMove?.total ? Colors.primary : Colors.$iconDanger} />
+            <Text text80BL>
+              Còn trống: {' '}
+              <Text style={{fontSize: 18, fontWeight: 'bold'}}>{locationMove?.occupied} / {locationMove?.total}</Text>
+            </Text>
+          </View>
         </View>
         <View row centerV marginT-10 gap-5>
           <ClockIcon color={Colors.$textNeutralHeavy} />
@@ -966,11 +987,15 @@ export const AuthProvider = ({ children }) => {
   function fetchUser(user_id) {
     getDoc(doc(db, "users", user_id)).then((doc) => {
       if (doc.exists()) {
-        setCurrentUser({
-          id: doc.id,
-          ...doc.data(),
-        });
-        fetchFavorites(doc.id);
+        const user = doc.data();
+
+        if (user?.status === "active") {
+          setCurrentUser({
+            id: doc.id,
+            ...user,
+          });
+          fetchFavorites(doc.id);
+        }
       } else {
         alert("Tài khoản không tồn tại");
       }
@@ -1063,6 +1088,99 @@ const DrawerNavigator = ({ navigation }) => {
   const { currentUser } = useContext(AuthContext);
   const cur = currentUser ? currentUser.email : "no user";
   const navigate = useNavigation();
+
+  const renderDrawer = () => {
+    if (currentUser?.role === "user") {
+      return (
+        <>
+          <Drawer.Screen
+            name="ListParkedScreen"
+            component={ListParkedScreen}
+            options={{
+              drawerLabel: "Lịch sử",
+              title: "Lịch sử Bãi đỗ xe",
+              headerStyle: {
+                backgroundColor: Colors.primary,
+              },
+              headerLeftContainerStyle: {
+                paddingLeft: 10,
+              },
+              drawerIcon: ({ color }) => (
+                <IconView>
+                  <Image
+                    width={20}
+                    source={require("./assets/parked-car.png")}
+                  />
+                </IconView>
+              ),
+              headerLeft: () => (
+                <TouchableOpacity onPress={() => navigate.goBack()}>
+                  <ChevronLeftIcon color={Colors.white} />
+                </TouchableOpacity>
+              ),
+              headerTitleAlign: "center",
+              headerTitleStyle: {
+                color: Colors.white,
+              },
+              drawerActiveBackgroundColor: Colors.primary,
+            }}
+          />
+          <Drawer.Screen
+            name="ListHeartScreen"
+            component={ListHeartScreen}
+            options={{
+              drawerLabel: "Yêu thích",
+              title: "Bãi đỗ xe yêu thích",
+              headerStyle: {
+                backgroundColor: Colors.primary,
+              },
+              headerLeftContainerStyle: {
+                paddingLeft: 10,
+              },
+              drawerIcon: ({ color }) => (
+                <IconView>
+                  <HeartIconS color={Colors.primary} />
+                </IconView>
+              ),
+              headerLeft: () => (
+                <TouchableOpacity onPress={() => navigate.goBack()}>
+                  <ChevronLeftIcon color={Colors.white} />
+                </TouchableOpacity>
+              ),
+              headerTitleAlign: "center",
+              headerTitleStyle: {
+                color: Colors.white,
+              },
+              drawerActiveBackgroundColor: Colors.primary,
+            }}
+          />
+          <Drawer.Screen
+            name="ProfileScreen"
+            component={ProfileScreen}
+            options={{
+              title: "Thông tin",
+              headerLeftContainerStyle: {
+                paddingLeft: 10,
+              },
+              headerLeft: () => (
+                <TouchableOpacity onPress={() => navigate.goBack()}>
+                  <ChevronLeftIcon color={Colors.primary} />
+                </TouchableOpacity>
+              ),
+              drawerLabel: "Thông tin",
+              drawerIcon: ({ color }) => (
+                <IconView>
+                  <UserIcon color={Colors.primary} />
+                </IconView>
+              ),
+            }}
+          />
+        </>
+      );
+    }
+
+    return null;
+  };
   return (
     <Drawer.Navigator>
       <Drawer.Screen
@@ -1078,106 +1196,7 @@ const DrawerNavigator = ({ navigation }) => {
         name="HomeScreen"
         component={HomeScreen}
       />
-      <Drawer.Screen
-        name="ListParkedScreen"
-        component={ListParkedScreen}
-        options={{
-          drawerLabel: "Lịch sử",
-          title: "Lịch sử Bãi đỗ xe",
-          headerStyle: {
-            backgroundColor: Colors.primary,
-          },
-          headerLeftContainerStyle: {
-            paddingLeft: 10,
-          },
-          drawerIcon: ({ color }) => (
-            <IconView>
-              <Image width={20} source={require("./assets/parked-car.png")} />
-            </IconView>
-          ),
-          headerLeft: () => (
-            <TouchableOpacity onPress={() => navigate.goBack()}>
-              <ChevronLeftIcon color={Colors.white} />
-            </TouchableOpacity>
-          ),
-          headerTitleAlign: "center",
-          headerTitleStyle: {
-            color: Colors.white,
-          },
-          drawerActiveBackgroundColor: Colors.primary,
-        }}
-      />
-      <Drawer.Screen
-        name="ListHeartScreen"
-        component={ListHeartScreen}
-        options={{
-          drawerLabel: "Yêu thích",
-          title: "Bãi đỗ xe yêu thích",
-          headerStyle: {
-            backgroundColor: Colors.primary,
-          },
-          headerLeftContainerStyle: {
-            paddingLeft: 10,
-          },
-          drawerIcon: ({ color }) => (
-            <IconView>
-              <HeartIconS color={Colors.primary} />
-            </IconView>
-          ),
-          headerLeft: () => (
-            <TouchableOpacity onPress={() => navigate.goBack()}>
-              <ChevronLeftIcon color={Colors.white} />
-            </TouchableOpacity>
-          ),
-          headerTitleAlign: "center",
-          headerTitleStyle: {
-            color: Colors.white,
-          },
-          drawerActiveBackgroundColor: Colors.primary,
-        }}
-      />
-      {/* <Drawer.Screen
-        name="NotificationsScreen"
-        component={NotificationsScreen}
-        options={{
-          drawerLabel: "Thông báo",
-          title: "Thông báo",
-          headerLeftContainerStyle: {
-            paddingLeft: 10,
-          },
-          headerLeft: () => (
-            <TouchableOpacity onPress={() => navigate.goBack()}>
-              <ChevronLeftIcon color={Colors.primary} />
-            </TouchableOpacity>
-          ),
-          drawerIcon: ({ color }) => (
-            <IconView>
-              <BellIcon color={Colors.primary} />
-            </IconView>
-          ),
-        }}
-      /> */}
-      <Drawer.Screen
-        name="ProfileScreen"
-        component={ProfileScreen}
-        options={{
-          title: "Thông tin",
-          headerLeftContainerStyle: {
-            paddingLeft: 10,
-          },
-          headerLeft: () => (
-            <TouchableOpacity onPress={() => navigate.goBack()}>
-              <ChevronLeftIcon color={Colors.primary} />
-            </TouchableOpacity>
-          ),
-          drawerLabel: "Thông tin",
-          drawerIcon: ({ color }) => (
-            <IconView>
-              <UserIcon color={Colors.primary} />
-            </IconView>
-          ),
-        }}
-      />
+      {renderDrawer()}
       <Drawer.Screen
         name="LogoutScreen"
         component={LogoutScreen}
@@ -1196,8 +1215,56 @@ const DrawerNavigator = ({ navigation }) => {
 };
 
 export const HomeScreen = ({ navigation }) => {
+  const { currentUser } = useContext(AuthContext);
+  const isFocused = useIsFocused()
+  useEffect(() => {
+    if (isFocused && currentUser?.status === "active") {
+      console.log("currentUser?.role", currentUser?.role);
+      if (currentUser?.role === "admin") {
+        navigation.navigate("AdminScreen");
+      }
+      if (currentUser?.role === "owner") {
+        navigation.navigate("OwnerScreen");
+      }
+      if (currentUser?.role === "user") {
+        navigation.navigate("MapScreen");
+      }
+    }
+  }, [currentUser]);
   return (
-    <Stack.Navigator initialRouteName="MapScreen">
+    <Stack.Navigator>
+      <Stack.Screen
+        options={{
+          title: "Danh sách người dùng",
+          headerTitleAlign: "center",
+          headerLeftContainerStyle: {
+            paddingLeft: 10,
+          },
+          headerLeft: () => (
+            <TouchableOpacity onPress={() => navigation.openDrawer()}>
+              <Bars3Icon color={Colors.primary} />
+            </TouchableOpacity>
+          ),
+        }}
+        name="AdminScreen"
+        component={AdminScreen}
+      />
+      <Stack.Screen
+        options={{
+          title: "Bãi đỗ xe",
+          headerTitleAlign: "center",
+          headerLeftContainerStyle: {
+            paddingLeft: 10,
+          },
+          headerLeft: () => (
+            <TouchableOpacity onPress={() => navigation.openDrawer()}>
+              <Bars3Icon color={Colors.primary} />
+            </TouchableOpacity>
+          ),
+        }}
+        name="OwnerScreen"
+        component={OwnerScreen}
+      />
       <Stack.Screen
         options={{
           headerShown: false,

@@ -18,7 +18,7 @@ import { useContext, useEffect, useState } from "react";
 import { auth, db } from "../firebase";
 import Loading from "./Loading";
 import { AuthContext } from "../context";
-import { addDoc, collection, doc, setDoc } from "firebase/firestore";
+import { addDoc, collection, doc, getDoc, setDoc } from "firebase/firestore";
 
 export function LoginScreen({ navigation }) {
   const [email, setEmail] = useState("");
@@ -28,7 +28,7 @@ export function LoginScreen({ navigation }) {
   const { currentUser } = useContext(AuthContext);
 
   useEffect(() => {
-    if (currentUser) {
+    if (currentUser && currentUser?.status === "active") {
       navigation.navigate("MapScreen");
     }
   }, [currentUser]);
@@ -42,9 +42,25 @@ export function LoginScreen({ navigation }) {
       .then((userCredential) => {
         // Signed in
         const user = userCredential.user;
-        navigation.navigate("HomeScreen");
-        // ...
-        setLoading(false);
+        getDoc(doc(db, "users", user.uid)).then((doc) => {
+          if (doc.exists()) {
+            const user = doc.data();
+
+            if (user?.status === "active") {
+              navigation.navigate("HomeScreen");
+            } else {
+              Alert.alert(
+                "Thông báo",
+                "Tài khoảng của bạn đang chờ phê duyệt!\nVui lòng liên hệ quản trị viên."
+              );
+              auth.signOut();
+              setLoading(false);
+            }
+          } else {
+            alert("Tài khoản không tồn tại");
+            setLoading(false);
+          }
+        });
       })
       .catch((error) => {
         const errorCode = error.code;
@@ -53,7 +69,9 @@ export function LoginScreen({ navigation }) {
         setErrorMessage(errorMessage);
         setLoading(false);
         // ..
-      });
+      }).finally(() => {
+        setLoading(false);
+      })
   };
 
   return (
