@@ -9,19 +9,21 @@ import {
   TextInput,
   Image,
   TouchableOpacity,
+  DeviceEventEmitter,
 } from "react-native";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
 } from "firebase/auth";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { auth, db } from "../firebase";
 import { addDoc, collection, doc, setDoc } from "firebase/firestore";
 import Loading from "./Loading";
 import { MapPinIcon, XCircleIcon } from "react-native-heroicons/solid";
 import ListParkOwnerModal from "../components/ListParkOwnerModal";
+import { useIsFocused } from "@react-navigation/core";
 
-export function RegisterScreen({ navigation }) {
+export function RegisterScreen({ route, navigation }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
@@ -30,6 +32,28 @@ export function RegisterScreen({ navigation }) {
   const [isOwner, setIsOwner] = useState(false);
   const [visibleModal, setVisibleModal] = useState(false);
   const [parking, setParking] = useState({});
+  const isFocused = useIsFocused();
+  const userParam = route.params?.user;
+  const placeParam = route.params?.place;
+
+  useEffect(() => {
+    if (isFocused) {
+      if (userParam) {
+        setEmail(userParam.email);
+        setPassword(userParam.password);
+        setPasswordConfirm(userParam.passwordConfirm);
+        setIsOwner(userParam.isOwner);
+      }
+
+      if (placeParam) {
+        if(!placeParam?.place_id) {
+          placeParam.place_id = new Date().getTime() + ""
+        }
+
+        setParking(placeParam);
+      }
+    }
+  }, [isFocused, userParam, placeParam]);
 
   const handleClose = () => {
     setVisibleModal(false);
@@ -56,7 +80,7 @@ export function RegisterScreen({ navigation }) {
       return;
     }
 
-    if (isOwner && !parking?.place_id) {
+    if (isOwner && !parking?.name) {
       setErrorMessage("Vui lòng chọn bãi đỗ xe của bạn");
       return;
     }
@@ -73,13 +97,15 @@ export function RegisterScreen({ navigation }) {
           place_name: parking?.name,
           place_vicinity: parking?.vicinity,
         };
+
+        console.log("parking", parking);
         setDoc(doc(db, "users", user.uid), {
           email: user.email,
           id: user.uid,
           role: isOwner ? "owner" : "user",
           status: isOwner ? "deactive" : "active",
           createdAt: new Date().getTime(),
-          ...(isOwner ? place : {})
+          ...(isOwner ? place : {}),
         }).then((response) => {
           if (isOwner === false) {
             navigation.navigate("HomeScreen");
@@ -88,8 +114,7 @@ export function RegisterScreen({ navigation }) {
             setDoc(doc(db, "places", parking?.place_id), {
               user_id: user.uid,
               place_id: parking?.place_id,
-              vicinity: parking?.vicinity,
-              name: parking?.name,
+              ...parking,
               createdAt: new Date().getTime(),
             }).then(() => {
               Alert.alert(
@@ -114,6 +139,18 @@ export function RegisterScreen({ navigation }) {
 
   const handleLogin = (user) => {
     navigation.navigate("LoginScreen");
+  };
+
+  const handleAddNew = () => {
+    setVisibleModal(false);
+    navigation.navigate("SelectMap", {
+      user: {
+        email,
+        password,
+        passwordConfirm,
+        isOwner,
+      },
+    });
   };
 
   return (
@@ -269,6 +306,7 @@ export function RegisterScreen({ navigation }) {
         visible={visibleModal}
         onDismiss={handleClose}
         onSelected={handleSelected}
+        onAddNew={handleAddNew}
       />
     </SafeAreaView>
   );

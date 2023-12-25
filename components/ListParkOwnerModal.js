@@ -13,6 +13,7 @@ import {
   MagnifyingGlassIcon,
   MapPinIcon,
   PaperAirplaneIcon,
+  PlusCircleIcon,
   XCircleIcon,
 } from "react-native-heroicons/solid";
 import Popover from "react-native-popover-view";
@@ -20,9 +21,9 @@ import { Placement } from "react-native-popover-view/dist/Types";
 import { AuthContext } from "../context";
 import { GOOGLE_MAPS_API_KEY } from "../secrets";
 import { radiusOptions } from "../contanst";
-import SelectedOnMap from "./SelectedMaps";
+import { useNavigation } from "@react-navigation/core";
 
-const ListParkOwnerModal = ({ visible, onDismiss, onSelected }) => {
+const ListParkOwnerModal = ({ visible, onDismiss, onSelected, onAddNew }) => {
   const [places, setPlaces] = useState([]);
   const [radius, setRadius] = useState(500);
   const [reload, setReload] = useState(false);
@@ -32,6 +33,26 @@ const ListParkOwnerModal = ({ visible, onDismiss, onSelected }) => {
   const { currentUser, locationMove, moveNewLocation } =
     useContext(AuthContext);
   const [inputSearch, setInputSearch] = useState("");
+  const navigation = useNavigation();
+  const [region, setRegion] = useState({
+    latitude: 37.78825,
+    longitude: -122.4324,
+    latitudeDelta: 0.0922,
+    longitudeDelta: 0.0421,
+  });
+  const [selectedLocation, setSelectedLocation] = useState();
+
+  const handleRegionChange = (newRegion) => {
+    setRegion(newRegion);
+  };
+
+  const selectLocation = () => {
+    setSelectedLocation({
+      latitude: region.latitude,
+      longitude: region.longitude,
+    });
+    // Here, you might want to do something with the selected location, like storing it or displaying it.
+  };
 
   function clearInput() {
     setInputSearch("");
@@ -104,14 +125,27 @@ const ListParkOwnerModal = ({ visible, onDismiss, onSelected }) => {
       style={{ flex: 1, padding: 10 }}
       close
     >
-      <SafeAreaView style={{flex: 1, padding:10}}>
+      <SafeAreaView
+        style={{ flex: 1, padding: 10, backgroundColor: "#f2f4f7" }}
+      >
         <View row spread paddingH-10>
-        <Text text50R marginB-10>
-          Chọn bãi đỗ xe
-        </Text>
-        <TouchableOpacity onPress={onDismiss}>
-          <XCircleIcon color={Colors.$backgroundDark} style={{ width: 30, height: 30 }} />
-        </TouchableOpacity>
+          <Text text50R marginB-10>
+            Chọn bãi đỗ xe
+          </Text>
+          <View row centerV gap-20>
+            <TouchableOpacity onPress={onAddNew}>
+              <PlusCircleIcon
+                color={Colors.primary}
+                style={{ width: 30, height: 30 }}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onDismiss}>
+              <XCircleIcon
+                color={Colors.$backgroundDark}
+                style={{ width: 30, height: 30 }}
+              />
+            </TouchableOpacity>
+          </View>
         </View>
         <View row centerV marginB-10 gap-10 spread>
           <Popover

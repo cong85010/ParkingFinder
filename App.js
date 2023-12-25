@@ -96,6 +96,7 @@ import ListHeartScreen from "./screens/ListHeartScreen";
 import ListParkedScreen from "./screens/ListParkedScreen";
 import AdminScreen from "./screens/AdminScreen";
 import OwnerScreen from "./screens/OwnerScreen";
+import SelectedOnMap from "./components/SelectedMaps";
 // import MapScreen from "./screens/MapScreen";
 
 Colors.loadColors({
@@ -281,11 +282,13 @@ export function MapScreen({ route, navigation }) {
       longitude: place?.geometry?.location?.lng,
     };
 
+    setLoading(true)
     const placeDoc = await getDoc(doc(db, "places", place.place_id));
     const placeOwner = placeDoc.data() || {};
 
     getPlaceDetail(place.place_id)
       .then((response) => {
+       setLoading(false)
         setIsVisible(true);
         setLoadingDialog(false);
         moveNewLocation({
@@ -302,6 +305,7 @@ export function MapScreen({ route, navigation }) {
         }
       })
       .catch((err) => {
+        setLoading(false)
         console.log("err", err);
       });
   };
@@ -877,8 +881,9 @@ export function MapScreen({ route, navigation }) {
           <View row centerV  marginL-10 gap-5>
             <RectangleStackIcon color={locationMove?.occupied < locationMove?.total ? Colors.primary : Colors.$iconDanger} />
             <Text text80BL>
-              Còn trống: {' '}
-              <Text style={{fontSize: 18, fontWeight: 'bold'}}>{locationMove?.occupied} / {locationMove?.total}</Text>
+              Đã đỗ: {' '}
+              <Text style={{fontSize: 18, fontWeight: 'bold'}}>{locationMove?.occupied} / {locationMove?.total}</Text> {' '}
+              chổ
             </Text>
           </View>
         </View>
@@ -1232,7 +1237,7 @@ export const HomeScreen = ({ navigation }) => {
     }
   }, [currentUser]);
   return (
-    <Stack.Navigator>
+    <Stack.Navigator initialRouteName="LoginScreen">
       <Stack.Screen
         options={{
           title: "Danh sách người dùng",
@@ -1264,6 +1269,13 @@ export const HomeScreen = ({ navigation }) => {
         }}
         name="OwnerScreen"
         component={OwnerScreen}
+      />
+      <Stack.Screen
+        options={{
+          headerShown: false,
+        }}
+        name="SelectMap"
+        component={SelectedOnMap}
       />
       <Stack.Screen
         options={{
