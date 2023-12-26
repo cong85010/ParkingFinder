@@ -79,7 +79,12 @@ import ProfileScreen from "./screens/ProfileScreen";
 import NotificationsScreen from "./screens/Notification";
 import Loading from "./screens/Loading";
 import { AuthContext } from "./context";
-import { PRICE_TEXT, convertUtcOffset, radiusOptions } from "./contanst";
+import {
+  PRICE_TEXT,
+  convertUtcOffset,
+  findNearbyParkingLots,
+  radiusOptions,
+} from "./contanst";
 import Popover from "react-native-popover-view";
 import ListParkScreen from "./screens/ListParkScreen";
 import {
@@ -89,6 +94,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  orderBy,
   updateDoc,
   where,
 } from "firebase/firestore";
@@ -213,6 +219,28 @@ export function MapScreen({ route, navigation }) {
           return;
         }
 
+        const q = query(collection(db, "places"), orderBy("latitude", "asc"));
+
+        const parkingLotsDB = await getDocs(q);
+        const resultParks = [];
+        console.log("parkingLotsDB", parkingLotsDB);
+
+        parkingLotsDB.forEach((doc) => {
+          resultParks.push({
+            id: doc.id,
+            ...doc.data(),
+          });
+        });
+
+        // Sử dụng
+        const nearbyLots = findNearbyParkingLots(
+          resultParks,
+          viewLocation.latitude,
+          viewLocation.longitude,
+          0.5
+        );
+        console.log("nearbyLots", nearbyLots);
+
         console.log("Loadinggg");
         const apiKey = GOOGLE_MAPS_API_KEY; // Replace with your Google Maps API key
         const response = await fetch(
@@ -220,9 +248,7 @@ export function MapScreen({ route, navigation }) {
         );
         const result = await response.json();
 
-        if (result.status === "OK" && result.results.length > 0) {
-          setPlaces(result.results);
-        }
+        setPlaces([...result.results, ...nearbyLots]);
         console.log("result", result);
       } catch (error) {
         console.error(error);
@@ -239,13 +265,16 @@ export function MapScreen({ route, navigation }) {
   const getPlaceDetail = async function (place_id) {
     console.log("screenWidth", screenWidth);
     try {
+
+      if(Number.isInteger(+place_id)){
+        return {};
+      }
+
       const response = await fetch(
         `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place_id}&fields=formatted_phone_number,price_level,opening_hours&language=vi&key=${GOOGLE_MAPS_API_KEY}`
       );
 
       const result = await response.json();
-      if (result.status !== "OK") throw new Error("Error");
-
       return result?.result;
     } catch (error) {
       console.error(error);
@@ -282,13 +311,27 @@ export function MapScreen({ route, navigation }) {
       longitude: place?.geometry?.location?.lng,
     };
 
-    setLoading(true)
-    const placeDoc = await getDoc(doc(db, "places", place.place_id));
-    const placeOwner = placeDoc.data() || {};
+    setLoading(true);
+
+    console.log("typeof", typeof place?.place_id);
+    let placeOwner = {};
+    if(Number.isInteger(+place?.place_id)){
+      const placeDoc = await getDoc(doc(db, "places", place.place_id));
+      placeOwner = {
+        ...placeDoc.data(),
+        geometry: {
+          location: {
+            lat: placeDoc.data().latitude,
+            lng: placeDoc.data().longitude,
+          }
+        }
+      }
+
+    }
 
     getPlaceDetail(place.place_id)
       .then((response) => {
-       setLoading(false)
+        setLoading(false);
         setIsVisible(true);
         setLoadingDialog(false);
         moveNewLocation({
@@ -305,7 +348,7 @@ export function MapScreen({ route, navigation }) {
         }
       })
       .catch((err) => {
-        setLoading(false)
+        setLoading(false);
         console.log("err", err);
       });
   };
@@ -317,9 +360,6 @@ export function MapScreen({ route, navigation }) {
 
   useEffect(() => {
     if (selectedMove && isFocused) {
-      console.log("====================================");
-      console.log("selectedMove", selectedMove);
-      console.log("====================================");
       handleMarkerPress(selectedMove);
     }
   }, [selectedMove, isFocused]);
@@ -422,6 +462,7 @@ export function MapScreen({ route, navigation }) {
       setLoadingDialog(true);
       const collectionRef = collection(db, "parkings");
 
+      console.log("locationMove", locationMove);
       const newParking = {
         user_id: currentUser?.id,
         place_id: locationMove?.place_id,
@@ -443,6 +484,7 @@ export function MapScreen({ route, navigation }) {
       setLoadingDialog(false);
       setIsVisible(false);
     } catch (error) {
+      console.log(error);
       Alert.alert("Lỗi", "Hệ thống quá tải, thử lại sau!!!");
       setLoadingDialog(false);
     }
@@ -504,7 +546,7 @@ export function MapScreen({ route, navigation }) {
       const [day, timeRange] = time.split(": ");
       return (
         <View row marginT-3 key={day}>
-          <Text text80B style={{ width: 75 }}>
+          <Text text80B style={{ width: 100 }}>
             {day}:
           </Text>
           <Text text80R>{timeRange}</Text>
@@ -524,7 +566,7 @@ export function MapScreen({ route, navigation }) {
             </TouchableOpacity>
           }
         >
-          <View padding-10 width={200}>
+          <View padding-10 width={250}>
             {times}
           </View>
         </Popover>
@@ -575,30 +617,30 @@ export function MapScreen({ route, navigation }) {
         </View>
       </View>
       <View
-          style={{
-            width: "100%",
-            position: "relative",
-            top: 80,
-            zIndex: 9,
-          }}
-        >
-          <ScrollView horizontal={true} style={{}}>
-            {places?.slice(0, 5).map((place, idx) => (
-              <TouchableOpacity
-                style={{ borderRadius: 18 }}
-                marginL-10
-                paddingH-10
-                paddingV-10
-                backgroundColor={Colors.$textWhite}
-                key={place?.place_id + idx || idx}
-              >
-                <TouchableOpacity onPress={() => handleMarkerPress(place)}>
-                  <Text>{place?.name}</Text>
-                </TouchableOpacity>
+        style={{
+          width: "100%",
+          position: "relative",
+          top: 80,
+          zIndex: 9,
+        }}
+      >
+        <ScrollView horizontal={true} style={{}}>
+          {places?.slice(0, 5).map((place, idx) => (
+            <TouchableOpacity
+              style={{ borderRadius: 18 }}
+              marginL-10
+              paddingH-10
+              paddingV-10
+              backgroundColor={Colors.$textWhite}
+              key={place?.place_id + idx || idx}
+            >
+              <TouchableOpacity onPress={() => handleMarkerPress(place)}>
+                <Text>{place?.name}</Text>
               </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
       <SafeAreaView
         style={{
           width: "100%",
@@ -606,7 +648,6 @@ export function MapScreen({ route, navigation }) {
           height: Dimensions.get("window").height,
         }}
       >
-        
         {region.latitude === 0 ? (
           <View center flex>
             <Button
@@ -639,13 +680,13 @@ export function MapScreen({ route, navigation }) {
                 key={index}
                 onPress={(e) => handleMarkerPress(place)}
                 coordinate={{
-                  latitude: place.geometry.location.lat,
-                  longitude: place.geometry.location.lng,
+                  latitude: place?.geometry?.location?.lat || place?.latitude,
+                  longitude: place?.geometry?.location?.lng || place?.longitude,
                 }}
                 title={place.name}
                 description={place.vicinity}
                 icon={
-                  place.business_status === "OPERATIONAL"
+                  place?.business_status === "OPERATIONAL"
                     ? require("./assets/parking.png")
                     : require("./assets/no-parking.png")
                 }
@@ -875,15 +916,29 @@ export function MapScreen({ route, navigation }) {
             <LockClosedIcon color={Colors.$iconDanger} />
           )}
           <Text text80R>
-            Trạng thái: {' '}
+            Trạng thái:{" "}
             {locationMove?.opening_hours?.open_now ? "Mở cửa" : "Đóng cửa"}
           </Text>
-          <View row centerV  marginL-10 gap-5>
-            <RectangleStackIcon color={locationMove?.occupied < locationMove?.total ? Colors.primary : Colors.$iconDanger} />
+          <View row centerV marginL-10 gap-5>
+            <RectangleStackIcon
+              color={
+                locationMove?.occupied < locationMove?.total
+                  ? Colors.primary
+                  : Colors.$iconDanger
+              }
+            />
             <Text text80BL>
-              Đã đỗ: {' '}
-              <Text style={{fontSize: 18, fontWeight: 'bold'}}>{locationMove?.occupied} / {locationMove?.total}</Text> {' '}
-              chổ
+              Đã đỗ:{" "}
+              {locationMove?.occupied ? (
+                <>
+                  <Text style={{ fontSize: 18, fontWeight: "bold" }}>
+                    {locationMove?.occupied} / {locationMove?.total || ""}
+                  </Text>
+                 {" "} chổ
+                </>
+              ) : (
+                "Chưa đăng ký"
+              )}
             </Text>
           </View>
         </View>
@@ -1219,19 +1274,18 @@ const DrawerNavigator = ({ navigation }) => {
   );
 };
 
-export const HomeScreen = ({ navigation }) => {
+export const HomeScreen = ({ route, navigation }) => {
   const { currentUser } = useContext(AuthContext);
-  const isFocused = useIsFocused()
+  const { name } = route;
+  const isFocused = useIsFocused();
   useEffect(() => {
     if (isFocused && currentUser?.status === "active") {
       console.log("currentUser?.role", currentUser?.role);
-      if (currentUser?.role === "admin") {
+      if (name !== "admin" && currentUser?.role === "admin") {
         navigation.navigate("AdminScreen");
-      }
-      if (currentUser?.role === "owner") {
+      } else if (name !== "owner" && currentUser?.role === "owner") {
         navigation.navigate("OwnerScreen");
-      }
-      if (currentUser?.role === "user") {
+      } else if (name !== "user" && currentUser?.role === "user") {
         navigation.navigate("MapScreen");
       }
     }

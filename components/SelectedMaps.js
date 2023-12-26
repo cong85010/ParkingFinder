@@ -67,6 +67,12 @@ const SelectMapView = ({ route, navigation }) => {
 
   const updateParkingInfo = async () => {
     try {
+      //Required all field
+      if (!place?.name || !place?.vicinity || !place?.total || !place?.occupied || !place?.formatted_phone_number) {
+        Alert.alert("Thông báo", "Vui lòng nhập đầy đủ thông tin");
+        return;
+      }
+
       if (+place?.occupied > +place?.total) {
         Alert.alert("Bãi xe quá tải", "Bãi xe quá số lượng đỗ xe");
         return;
