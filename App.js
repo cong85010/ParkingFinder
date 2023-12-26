@@ -237,7 +237,7 @@ export function MapScreen({ route, navigation }) {
           resultParks,
           viewLocation.latitude,
           viewLocation.longitude,
-          0.5
+          (radius / 1000)
         );
         console.log("nearbyLots", nearbyLots);
 
@@ -512,17 +512,42 @@ export function MapScreen({ route, navigation }) {
 
   const handleCancelPark = async () => {
     try {
-      setLoadingDialog(true);
-      const docRef = doc(db, "parkings", locationMove?.parking_id);
-
-      await updateDoc(docRef, {
-        timeEnd: new Date().getTime(),
-        status: "cancel",
-      });
-
-      alert("Đã hủy xe thành công");
-      moveNewLocation({});
-      setLoadingDialog(false);
+      Alert.alert(
+        "Hủy đỗ xe",
+        "Bạn có chắc chắn muốn hủy đỗ xe tại đây?",
+        [
+          {
+            text: "Hủy",
+            onPress: () => console.log("Cancel Pressed"),
+            style: "cancel",
+          },
+          {
+            text: "Đồng ý",
+            onPress: async () => {
+              try {
+                setLoadingDialog(true);
+                const docRef = doc(db, "parkings", locationMove?.parking_id);
+          
+                await updateDoc(docRef, {
+                  timeEnd: new Date().getTime(),
+                  status: "cancel",
+                });
+          
+                alert("Đã hủy xe thành công");
+                moveNewLocation({});
+                setLoadingDialog(false);
+              } catch (error) {
+                console.log("====================================");
+                console.log(error);
+                console.log("====================================");
+                Alert.alert("Lỗi", "Không thể hủy đỗ xe");
+                setLoadingDialog(false);
+              }
+            },
+          },
+        ],
+        { cancelable: false }
+      );
     } catch (error) {
       Alert.alert("Lỗi", "Hệ thống quá tải, thử lại sau!!!");
       setLoadingDialog(false);
