@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
-import { StyleSheet, Dimensions, Image, TextInput, Alert, DeviceEventEmitter } from "react-native";
+import { StyleSheet, Dimensions, Image, TextInput, Alert, DeviceEventEmitter, TouchableOpacity } from "react-native";
 import MapView from "react-native-maps";
 import { View, Colors, Text, Button } from "react-native-ui-lib";
 import * as Location from "expo-location";
 import { useIsFocused } from "@react-navigation/core";
+import { LifebuoyIcon } from "react-native-heroicons/solid";
 
 const SelectMapView = ({ route, navigation }) => {
   const [region, setRegion] = useState({
@@ -237,6 +238,27 @@ const SelectMapView = ({ route, navigation }) => {
           source={require("../assets/parking.png")}
         />
       </View>
+      <View
+          row
+          style={{
+            position: "absolute",
+            zIndex: 99,
+            bottom: 85,
+            right: 0,
+            paddingHorizontal: 20,
+          }}
+        >
+          <TouchableOpacity
+            onPress={handleCurrent}
+            style={{
+              borderRadius: 999,
+              backgroundColor: Colors.$textWhite,
+              padding: 5,
+            }}
+          >
+            <LifebuoyIcon color={Colors.$textPrimary} />
+          </TouchableOpacity>
+        </View>
       <Button
         label="Chọn vị trí bãi xe"
         backgroundColor={Colors.primary}

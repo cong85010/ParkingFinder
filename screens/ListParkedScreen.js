@@ -28,6 +28,7 @@ import {
   collection,
   doc,
   getDocs,
+  increment,
   orderBy,
   updateDoc,
   where,
@@ -170,7 +171,7 @@ const ListParkedScreen = ({ navigation }) => {
     );
   };
 
-  const handleCancel = (parking_id) => {
+  const handleCancel = (parking_id, place_id) => {
     const docRef = doc(db, "parkings", parking_id);
 
     Alert.alert(
@@ -191,6 +192,11 @@ const ListParkedScreen = ({ navigation }) => {
                 updatedAt: new Date().getTime(),
                 status: "cancel",
               });
+              const docPlaceRef = doc(db, "places", place_id);
+
+              await updateDoc(docPlaceRef, {
+                occupied: increment(-1),
+              });
               setReload(!reload);
               setLoading(false);
             } catch (error) {
@@ -207,7 +213,7 @@ const ListParkedScreen = ({ navigation }) => {
     );
   };
 
-  const handleFinish = async (parking_id) => {
+  const handleFinish = async (parking_id, place_id) => {
     const docRef = doc(db, "parkings", parking_id);
 
     try {
@@ -217,6 +223,12 @@ const ListParkedScreen = ({ navigation }) => {
         timeFinish: new Date().getTime(),
         status: "parked",
       });
+      const docPlaceRef = doc(db, "places", place_id);
+
+      await updateDoc(docPlaceRef, {
+        occupied: increment(-1),
+      });
+
       setReload(!reload);
       setLoading(false);
     } catch (error) {
@@ -265,7 +277,7 @@ const ListParkedScreen = ({ navigation }) => {
               backgroundColor: Colors.$backgroundDangerLight,
               ...commonStyles,
             }}
-            onPress={() => handleCancel(parking_id)}
+            onPress={() => handleCancel(parking_id, parking?.place_id)}
           >
             <XCircleIcon width={30} height={30} color={Colors.$iconDanger} />
           </TouchableOpacity>
@@ -280,7 +292,7 @@ const ListParkedScreen = ({ navigation }) => {
               backgroundColor: Colors.$backgroundDangerLight,
               ...commonStyles,
             }}
-            onPress={() => handleCancel(parking_id)}
+            onPress={() => handleCancel(parking_id, parking?.place_id)}
           >
             <XCircleIcon width={30} height={30} color={Colors.$iconDanger} />
           </TouchableOpacity>
@@ -289,7 +301,7 @@ const ListParkedScreen = ({ navigation }) => {
               backgroundColor: Colors.$backgroundDangerLight,
               ...commonStyles,
             }}
-            onPress={() => handleFinish(parking_id)}
+            onPress={() => handleFinish(parking_id, parking?.place_id)}
           >
             <CheckCircleIcon
               width={30}

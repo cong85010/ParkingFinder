@@ -34,6 +34,7 @@ const OwnerScreen = () => {
   const [visibleModal, setVisibleModal] = useState(false);
   const { currentUser } = useContext(AuthContext);
   const [schedule, setSchedule] = useState(hours);
+  const [phone, setPhone] = useState("");
 
   const handleClose = () => {
     setVisibleModal(false);
@@ -50,8 +51,9 @@ const OwnerScreen = () => {
           const place = doc.data();
           console.log("place", place);
           setPlace(place);
-          setTotal(String(place.total));
-          setOccupied(String(place.occupied));
+          setTotal(String(place.total || ""));
+          setPhone(String(place.formatted_phone_number || ""));
+          setOccupied(String(place.occupied || ""));
           setBusinessStatus(String(place?.business_status));
           if (place?.schedule?.length > 0) setSchedule(place?.schedule);
         } else {
@@ -78,6 +80,7 @@ const OwnerScreen = () => {
       await updateDoc(docRef, {
         total: +total,
         occupied: +occupied,
+        formatted_phone_number: phone,
         business_status: businessStatus ? "OPERATIONAL" : "CLOSED",
         schedule,
         opening_hours: { weekday_text },
@@ -118,10 +121,10 @@ const OwnerScreen = () => {
           Liên hệ
         </Text>
         <TextInput
-          editable={false}
           testID="contactInput"
           placeholder="Số điện thoại"
-          value={place?.formatted_phone_number}
+          value={phone}
+          onChangeText={setPhone}
           keyboardType="phone-pad"
           containerStyle={{ marginVertical: 10 }}
           style={{

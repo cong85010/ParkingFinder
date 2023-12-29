@@ -94,6 +94,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  increment,
   orderBy,
   updateDoc,
   where,
@@ -197,15 +198,29 @@ export function MapScreen({ route, navigation }) {
   const selectedMove = route?.params?.selectedMove;
 
   useEffect(() => {
-    if (!currentUser) {
-      console.log("User is not logged in");
-      navigation.navigate("LoginScreen");
-    } else {
-      (async () => {
-        await handleCurrent(true);
-      })();
+    if (isFocused) {
+      if (!currentUser) {
+        console.log("User is not logged in");
+        navigation.navigate("LoginScreen");
+      } else {
+        if (currentUser?.role === "user") {
+          (async () => {
+            await handleCurrent(true);
+          })();
+        } else if (currentUser?.role === "admin") {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: "AdminScreen" }],
+          });
+        } else if (currentUser?.role === "owner") {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: "OwnerScreen" }],
+          });
+        }
+      }
     }
-  }, [currentUser]);
+  }, [currentUser, isFocused]);
 
   useEffect(() => {
     const initData = async () => {
@@ -237,7 +252,7 @@ export function MapScreen({ route, navigation }) {
           resultParks,
           viewLocation.latitude,
           viewLocation.longitude,
-          (radius / 1000)
+          radius / 1000
         );
         console.log("nearbyLots", nearbyLots);
 
@@ -265,8 +280,7 @@ export function MapScreen({ route, navigation }) {
   const getPlaceDetail = async function (place_id) {
     console.log("screenWidth", screenWidth);
     try {
-
-      if(Number.isInteger(+place_id)){
+      if (Number.isInteger(+place_id)) {
         return {};
       }
 
@@ -315,7 +329,7 @@ export function MapScreen({ route, navigation }) {
 
     console.log("typeof", typeof place?.place_id);
     let placeOwner = {};
-    if(Number.isInteger(+place?.place_id)){
+    if (Number.isInteger(+place?.place_id)) {
       const placeDoc = await getDoc(doc(db, "places", place.place_id));
       placeOwner = {
         ...placeDoc.data(),
@@ -323,10 +337,9 @@ export function MapScreen({ route, navigation }) {
           location: {
             lat: placeDoc.data().latitude,
             lng: placeDoc.data().longitude,
-          }
-        }
-      }
-
+          },
+        },
+      };
     }
 
     getPlaceDetail(place.place_id)
@@ -459,10 +472,18 @@ export function MapScreen({ route, navigation }) {
 
   const handleMoveToPark = async () => {
     try {
+      if (locationMove?.occupied >= locationMove?.total) {
+        Alert.alert(
+          "Thông báo",
+          "Bãi đỗ xe đã đầy, bạn có thể chọn bãi đỗ xe khác!!!"
+        );
+        return;
+      }
+
       setLoadingDialog(true);
       const collectionRef = collection(db, "parkings");
+      const docPlaceRef = doc(db, "places", locationMove?.place_id);
 
-      console.log("locationMove", locationMove);
       const newParking = {
         user_id: currentUser?.id,
         place_id: locationMove?.place_id,
@@ -476,6 +497,10 @@ export function MapScreen({ route, navigation }) {
         status: "moving",
       };
       const ref = await addDoc(collectionRef, newParking);
+
+      await updateDoc(docPlaceRef, {
+        occupied: increment(1),
+      });
 
       moveNewLocation({
         parking_id: ref.id,
@@ -511,6 +536,8 @@ export function MapScreen({ route, navigation }) {
   };
 
   const handleCancelPark = async () => {
+    const docPlaceRef = doc(db, "places", locationMove?.place_id);
+
     try {
       Alert.alert(
         "Hủy đỗ xe",
@@ -527,12 +554,16 @@ export function MapScreen({ route, navigation }) {
               try {
                 setLoadingDialog(true);
                 const docRef = doc(db, "parkings", locationMove?.parking_id);
-          
+
                 await updateDoc(docRef, {
                   timeEnd: new Date().getTime(),
                   status: "cancel",
                 });
-          
+
+                await updateDoc(docPlaceRef, {
+                  occupied: increment(-1),
+                });
+
                 alert("Đã hủy xe thành công");
                 moveNewLocation({});
                 setLoadingDialog(false);
@@ -958,8 +989,8 @@ export function MapScreen({ route, navigation }) {
                 <>
                   <Text style={{ fontSize: 18, fontWeight: "bold" }}>
                     {locationMove?.occupied} / {locationMove?.total || ""}
-                  </Text>
-                 {" "} chổ
+                  </Text>{" "}
+                  chổ
                 </>
               ) : (
                 "Chưa đăng ký"
@@ -1307,14 +1338,23 @@ export const HomeScreen = ({ route, navigation }) => {
     if (isFocused && currentUser?.status === "active") {
       console.log("currentUser?.role", currentUser?.role);
       if (name !== "admin" && currentUser?.role === "admin") {
-        navigation.navigate("AdminScreen");
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "AdminScreen" }],
+        });
       } else if (name !== "owner" && currentUser?.role === "owner") {
-        navigation.navigate("OwnerScreen");
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "OwnerScreen" }],
+        });
       } else if (name !== "user" && currentUser?.role === "user") {
-        navigation.navigate("MapScreen");
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "MapScreen" }],
+        });
       }
     }
-  }, [currentUser]);
+  }, [isFocused]);
   return (
     <Stack.Navigator initialRouteName="LoginScreen">
       <Stack.Screen

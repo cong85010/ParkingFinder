@@ -29,8 +29,27 @@ export function LoginScreen({ navigation }) {
 
   useEffect(() => {
     if (currentUser && currentUser?.status === "active") {
-      navigation.navigate("MapScreen");
+      if (currentUser?.role === "user") {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "MapScreen" }],
+        });
+      } else if (currentUser?.role === "admin") {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "AdminScreen" }],
+        });
+      } else if (currentUser?.role === "owner") {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "OwnerScreen" }],
+        });
+      }
     }
+
+    return () => {
+      setLoading(false);
+    };
   }, [currentUser]);
   const handleRegister = () => {
     navigation.navigate("RegisterScreen");
@@ -46,9 +65,7 @@ export function LoginScreen({ navigation }) {
           if (doc.exists()) {
             const user = doc.data();
 
-            if (user?.status === "active") {
-              navigation.navigate("HomeScreen");
-            } else {
+            if (user?.status !== "active") {
               Alert.alert(
                 "Thông báo",
                 "Tài khoảng của bạn đang chờ phê duyệt!\nVui lòng liên hệ quản trị viên."
@@ -69,9 +86,7 @@ export function LoginScreen({ navigation }) {
         setErrorMessage(errorMessage);
         setLoading(false);
         // ..
-      }).finally(() => {
-        setLoading(false);
-      })
+      });
   };
 
   return (

@@ -141,14 +141,14 @@ const AdminScreen = () => {
       <ScrollView>
         {users.map((item, index) => (
           <View key={item.email + index} row centerV spread marginT-10 paddingB-10 style={{borderBottomColor: '#ccc', borderBottomWidth: 1}}>
-            <View style={{ maxWidth: 200 }}>
+            <View style={{ maxWidth: 150 }}>
               <Text text80R>{item.email}</Text>
               {item.role === "owner" ? (
                 <>
                   <Text text80BL style={{ fontWeight: "bold" }}>
                     {item?.place_name}
                   </Text>
-                  <Text numberOfLines={2} text90R color={Colors.$iconDisabled}>
+                  <Text numberOfLines={3} text90R color={Colors.$iconDisabled}>
                     {item?.place_vicinity}
                   </Text>
                 </>
