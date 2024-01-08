@@ -59,6 +59,27 @@ const ListParkScreen = ({ navigation }) => {
 
         const { latitude, longitude } = location.coords;
 
+        
+        const parkingLotsDB = await getDocs(q);
+        const resultParks = [];
+        console.log("parkingLotsDB", parkingLotsDB);
+
+        parkingLotsDB.forEach((doc) => {
+          resultParks.push({
+            id: doc.id,
+            ...doc.data(),
+          });
+        });
+
+        // Sử dụng
+        const nearbyLots = findNearbyParkingLots(
+          resultParks,
+          latitude,
+          longitude,
+          radius / 1000,
+          inputSearch
+        );
+
         console.log("Loadinggg");
         const apiKey = GOOGLE_MAPS_API_KEY; // Replace with your Google Maps API key
         const response = await fetch(
@@ -66,9 +87,8 @@ const ListParkScreen = ({ navigation }) => {
         );
         const result = await response.json();
 
-        if (result.status === "OK" && result.results.length > 0) {
-          setPlaces(result.results);
-        }
+        setPlaces([...result.results, ...nearbyLots]);
+
         console.log("result", result);
         inputSearchRef.current.blur()
         setLoading(false);

@@ -50,9 +50,24 @@ export function calculateDistance(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.asin(Math.sqrt(a));
 }
 
+function removeDiacritics(str) {
+  return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+
 // Hàm tìm kiếm bãi xe gần đây
-export function findNearbyParkingLots(parkingLots, currentLat, currentLon, maxDistanceInKm) {
+export function findNearbyParkingLots(parkingLots, currentLat, currentLon, maxDistanceInKm, keyword) {
   return parkingLots.filter(lot => {
+
+    let normalizedParent = removeDiacritics(lot.name).toLowerCase();
+    let normalizedkeyword = removeDiacritics(keyword).toLowerCase();
+
+
+    let regex = new RegExp(normalizedkeyword, 'i');
+
+    if (keyword && keyword !== '' && !normalizedParent.match(regex)) {
+      return false;
+    }
     const distance = calculateDistance(currentLat, currentLon, lot.latitude, lot.longitude);
     return distance < maxDistanceInKm;
   });

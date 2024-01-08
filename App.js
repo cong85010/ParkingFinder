@@ -115,13 +115,18 @@ Colors.loadColors({
   $textPrimary: "#00bfff",
 });
 
-const GooglePlacesInput = ({ location, onPress }) => {
+const GooglePlacesInput = ({ location, onPressSearch }) => {
   const ref = useRef();
 
   const onClear = () => {
     ref.current.clear();
     ref.current.blur();
     ref.current.focus();
+  };
+
+  const handlePress = (data, details) => {
+    console.log("12323", details);
+    onPressSearch(data, details);
   };
   return (
     <GooglePlacesAutocomplete
@@ -134,7 +139,7 @@ const GooglePlacesInput = ({ location, onPress }) => {
       }}
       minLength={5}
       enablePoweredByContainer={false}
-      nearbyPlacesAPI="GooglePlacesSearch"
+      nearbyPlacesAPI="GoogleReverseGeocoding"
       renderLeftButton={() => (
         <MagnifyingGlassIcon
           style={{ position: "relative", top: 10, left: 27, zIndex: 999 }}
@@ -152,7 +157,7 @@ const GooglePlacesInput = ({ location, onPress }) => {
       onFail={() => Alert.alert("Lỗi", "Hệ thống quá tải, thử lại sau!!!")}
       fetchDetails={true}
       placeholder="Bạn muốn đỗ xe ở đâu?"
-      onPress={onPress}
+      onPress={handlePress}
       query={{
         key: GOOGLE_MAPS_API_KEY,
         language: "vi",
@@ -160,6 +165,56 @@ const GooglePlacesInput = ({ location, onPress }) => {
         location: `${location?.latitude},${location?.longitude}`,
       }}
     />
+  );
+};
+
+const FilterInput = ({ location, onPressSearch }) => {
+  const ref = useRef();
+  const [inputSearch, setInputSearch] = useState("");
+  const onClear = () => {
+    ref.current.clear();
+    ref.current.blur();
+    ref.current.focus();
+  };
+
+  const handleSubmitEditing = (data, details) => {
+    onPressSearch(inputSearch);
+  };
+  return (
+    <View
+      row
+      centerV
+      marginB-10
+      paddingH-20
+      gap-10
+      spread
+      ref={ref}
+      styles={{
+        zIndex: 999,
+      }}
+    >
+      <TextInput
+        value={inputSearch}
+        onChangeText={setInputSearch}
+        onSubmitEditing={handleSubmitEditing}
+        placeholder="Bạn muốn đỗ xe ở đâu?"
+        style={{
+          backgroundColor: "#FFF",
+          height: "100%",
+          paddingVertical: 10,
+          paddingHorizontal: 20,
+          borderRadius: 999,
+          flexGrow: 1,
+        }}
+        clearButtonMode="always"
+      />
+      <TouchableOpacity
+        style={{ backgroundColor: "#FFF", padding: 10, borderRadius: 999 }}
+        onPress={handleSubmitEditing}
+      >
+        <MagnifyingGlassIcon color={Colors.primary} />
+      </TouchableOpacity>
+    </View>
   );
 };
 
@@ -179,6 +234,7 @@ export function MapScreen({ route, navigation }) {
   const [loading, setLoading] = useState(false);
   const [loadingDialog, setLoadingDialog] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
+  const [inputSearch, setInputSearch] = useState("");
   const {
     currentUser,
     locationMove,
@@ -252,14 +308,15 @@ export function MapScreen({ route, navigation }) {
           resultParks,
           viewLocation.latitude,
           viewLocation.longitude,
-          radius / 1000
+          radius / 1000,
+          inputSearch
         );
         console.log("nearbyLots", nearbyLots);
 
         console.log("Loadinggg");
         const apiKey = GOOGLE_MAPS_API_KEY; // Replace with your Google Maps API key
         const response = await fetch(
-          `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${viewLocation.latitude},${viewLocation.longitude}&radius=${radius}&type=parking&key=${apiKey}`
+          `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${viewLocation.latitude},${viewLocation.longitude}&radius=${radius}&type=parking&keyword=${inputSearch}&key=${apiKey}`
         );
         const result = await response.json();
 
@@ -273,9 +330,9 @@ export function MapScreen({ route, navigation }) {
     };
 
     if (viewLocation) {
-      // initData();
+      initData();
     }
-  }, [radius, viewLocation, reload]);
+  }, [radius, viewLocation, reload, inputSearch]);
 
   const getPlaceDetail = async function (place_id) {
     console.log("screenWidth", screenWidth);
@@ -377,24 +434,9 @@ export function MapScreen({ route, navigation }) {
     }
   }, [selectedMove, isFocused]);
 
-  const onPressSearch = (data, details) => {
-    const latitude = details?.geometry?.location?.lat;
-    const longitude = details?.geometry?.location?.lng;
-
-    if (latitude === undefined || longitude === undefined) return;
-
-    mapRef.current.animateCamera({
-      zoom: 17,
-      center: {
-        latitude,
-        longitude,
-      },
-    });
-
-    setViewLocation({
-      latitude,
-      longitude,
-    });
+  const onPressSearch = (keyword) => {
+    
+    setInputSearch(keyword)
   };
 
   const handleCurrent = async (isCurrent = false) => {
@@ -669,7 +711,7 @@ export function MapScreen({ route, navigation }) {
             zIndex: 999,
           }}
         >
-          <GooglePlacesInput onPress={onPressSearch} location={viewLocation} />
+          <FilterInput onPressSearch={onPressSearch} location={viewLocation} />
         </View>
       </View>
       <View
