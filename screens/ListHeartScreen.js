@@ -57,7 +57,7 @@ const ListHeartScreen = ({ navigation }) => {
     });
 
     const dayOfWeek = new Date().getDay();
-    const today = weekday_text[dayOfWeek] + " (Hôm nay)";
+    const today = weekday_text[dayOfWeek] + "";
 
     return (
       <View>

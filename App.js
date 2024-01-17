@@ -335,7 +335,6 @@ export function MapScreen({ route, navigation }) {
   }, [radius, viewLocation, reload, inputSearch]);
 
   const getPlaceDetail = async function (place_id) {
-    console.log("screenWidth", screenWidth);
     try {
       if (Number.isInteger(+place_id)) {
         return {};
@@ -384,19 +383,24 @@ export function MapScreen({ route, navigation }) {
 
     setLoading(true);
 
-    console.log("typeof", typeof place?.place_id);
     let placeOwner = {};
     if (Number.isInteger(+place?.place_id)) {
       const placeDoc = await getDoc(doc(db, "places", place.place_id));
-      placeOwner = {
-        ...placeDoc.data(),
-        geometry: {
-          location: {
-            lat: placeDoc.data().latitude,
-            lng: placeDoc.data().longitude,
+
+      if(placeDoc.exists()) {
+        placeOwner = {
+          ...placeDoc.data(),
+          geometry: {
+            location: {
+              lat: placeDoc.data().latitude,
+              lng: placeDoc.data().longitude,
+            },
           },
-        },
-      };
+        };
+      } else {
+        Alert.alert('Bãi xe có thể đã bị xóa', 'Thử lại sau')
+      }
+      
     }
 
     getPlaceDetail(place.place_id)
@@ -540,10 +544,12 @@ export function MapScreen({ route, navigation }) {
       };
       const ref = await addDoc(collectionRef, newParking);
 
-      await updateDoc(docPlaceRef, {
-        occupied: increment(1),
-      });
-
+      if(locationMove?.occupied >= 0) {
+        await updateDoc(docPlaceRef, {
+          occupied: increment(1),
+        });
+      }
+     
       moveNewLocation({
         parking_id: ref.id,
         ...newParking,
@@ -602,9 +608,11 @@ export function MapScreen({ route, navigation }) {
                   status: "cancel",
                 });
 
-                await updateDoc(docPlaceRef, {
-                  occupied: increment(-1),
-                });
+                if(locationMove?.occupied >= 0) {
+                  await updateDoc(docPlaceRef, {
+                    occupied: increment(-1),
+                  });
+                }
 
                 alert("Đã hủy xe thành công");
                 moveNewLocation({});
@@ -653,7 +661,7 @@ export function MapScreen({ route, navigation }) {
     });
 
     const dayOfWeek = new Date().getDay();
-    const today = weekday_text[dayOfWeek] + " (Hôm nay)";
+    const today = weekday_text[dayOfWeek] + "";
 
     return (
       <View>
@@ -1008,14 +1016,14 @@ export function MapScreen({ route, navigation }) {
           <Text text80R>Địa chỉ: {locationMove?.vicinity || "Trống"} </Text>
         </View>
         <View row centerV marginT-10 gap-5>
-          {locationMove?.opening_hours?.open_now ? (
+          {locationMove?.business_status === "OPERATIONAL" ? (
             <LockOpenIcon color={Colors.$iconSuccess} />
           ) : (
             <LockClosedIcon color={Colors.$iconDanger} />
           )}
           <Text text80R>
             Trạng thái:{" "}
-            {locationMove?.opening_hours?.open_now ? "Mở cửa" : "Đóng cửa"}
+            {locationMove?.business_status === "OPERATIONAL" ? "Mở cửa" : "Đóng cửa"}
           </Text>
           <View row centerV marginL-10 gap-5>
             <RectangleStackIcon

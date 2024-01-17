@@ -27,6 +27,7 @@ import { get, query } from "firebase/database";
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   increment,
   orderBy,
@@ -82,7 +83,7 @@ const ListParkedScreen = ({ navigation }) => {
       initData();
     }
 
-    if(!isFocused) {
+    if (!isFocused) {
       setParkings([]);
     }
   }, [isFocused, reload]);
@@ -194,8 +195,14 @@ const ListParkedScreen = ({ navigation }) => {
               });
               const docPlaceRef = doc(db, "places", place_id);
 
-              await updateDoc(docPlaceRef, {
-                occupied: increment(-1),
+              await getDoc(docPlaceRef).then((docSnap) => {
+                if (docSnap.exists()) {
+                  updateDoc(docPlaceRef, {
+                    occupied: increment(-1),
+                  });
+                } else {
+                  console.log("No such document!");
+                }
               });
               setReload(!reload);
               setLoading(false);
@@ -225,8 +232,14 @@ const ListParkedScreen = ({ navigation }) => {
       });
       const docPlaceRef = doc(db, "places", place_id);
 
-      await updateDoc(docPlaceRef, {
-        occupied: increment(-1),
+      await getDoc(docPlaceRef).then((docSnap) => {
+        if (docSnap.exists()) {
+          updateDoc(docPlaceRef, {
+            occupied: increment(-1),
+          });
+        } else {
+          console.log("No such document!");
+        }
       });
 
       setReload(!reload);
@@ -260,7 +273,6 @@ const ListParkedScreen = ({ navigation }) => {
               ...commonStyles,
             }}
             onPress={() => {
-              
               navigation.navigate("MapScreen", {
                 selectedMove: parking,
               });

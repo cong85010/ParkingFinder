@@ -16,9 +16,12 @@ import {
   PaperAirplaneIcon,
   XCircleIcon,
 } from "react-native-heroicons/solid";
-import { radiusOptions } from "../contanst";
+import { findNearbyParkingLots, radiusOptions } from "../contanst";
 import Popover from "react-native-popover-view";
 import { Placement } from "react-native-popover-view/dist/Types";
+import { collection, getDocs, orderBy } from "firebase/firestore";
+import { query } from "firebase/database";
+import { db } from "../firebase";
 
 const ListParkScreen = ({ navigation }) => {
   const [places, setPlaces] = useState([]);
@@ -59,6 +62,7 @@ const ListParkScreen = ({ navigation }) => {
 
         const { latitude, longitude } = location.coords;
 
+        const q = query(collection(db, "places"), orderBy("latitude", "asc"));
         
         const parkingLotsDB = await getDocs(q);
         const resultParks = [];

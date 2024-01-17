@@ -1,7 +1,8 @@
 // AdminScreen.js
-import { query, update } from "firebase/database";
+import { query, remove, update } from "firebase/database";
 import React, { useState, useEffect } from "react";
 import {
+  Alert,
   FlatList,
   SafeAreaView,
   ScrollView,
@@ -11,11 +12,13 @@ import {
   CheckCircleIcon,
   PauseCircleIcon,
   StopCircleIcon,
+  TrashIcon,
 } from "react-native-heroicons/solid";
 import { Button, Colors, Text, View } from "react-native-ui-lib";
 import { db } from "../firebase";
 import {
   collection,
+  deleteDoc,
   doc,
   getDocs,
   orderBy,
@@ -70,6 +73,45 @@ const AdminScreen = () => {
       )
     );
     setLoading(false);
+  };
+
+  const handleRemoveOwner = async (user) => {
+    Alert.alert(
+      "Xác nhận xóa",
+      "Bãi xe: " + user.place_name + "\nEmail: " + user.email,
+      [
+        {
+          text: "Hủy",
+          onPress: () => console.log("Cancel Pressed"),
+          style: "cancel",
+        },
+        {
+          text: "Đồng ý",
+          onPress: async () => {
+            try {
+              console.log(user);
+              setLoading(true);
+              const docRef = doc(db, "users", user.id);
+              const docPlacecRef = doc(db, "places", user.place_id);
+
+              await deleteDoc(docRef);
+              await deleteDoc(docPlacecRef);
+
+              alert("Đã xóa chủ bãi xe thành công");
+              setUsers(users.filter((item) => item.id !== user.id));
+              setLoading(false);
+            } catch (error) {
+              console.log("====================================");
+              console.log(error);
+              console.log("====================================");
+              Alert.alert("Lỗi", "Không thể xóa bãi đỗ xe");
+              setLoading(false);
+            }
+          },
+        },
+      ],
+      { cancelable: false }
+    );
   };
 
   useEffect(() => {
@@ -140,7 +182,15 @@ const AdminScreen = () => {
       />
       <ScrollView>
         {users.map((item, index) => (
-          <View key={item.email + index} row centerV spread marginT-10 paddingB-10 style={{borderBottomColor: '#ccc', borderBottomWidth: 1}}>
+          <View
+            key={item.email + index}
+            row
+            centerV
+            spread
+            marginT-10
+            paddingB-10
+            style={{ borderBottomColor: "#ccc", borderBottomWidth: 1 }}
+          >
             <View style={{ maxWidth: 150 }}>
               <Text text80R>{item.email}</Text>
               {item.role === "owner" ? (
@@ -157,7 +207,7 @@ const AdminScreen = () => {
               )}
             </View>
 
-            <View row centerV gap-20 style={{ width: 150 }}>
+            <View row centerV gap-20 style={{ width: 180 }}>
               <View
                 center
                 style={{
@@ -180,25 +230,39 @@ const AdminScreen = () => {
                 </Text>
               </View>
 
-              <Button
-                style={{ width: 40, height: 40 }}
-                backgroundColor={
-                  item.status === "active" ? Colors.$iconDanger : Colors.primary
-                }
-                iconSource={() =>
-                  item.status === "deactive" ? (
-                    <CheckCircleIcon color={Colors.white} />
-                  ) : (
-                    <StopCircleIcon color={Colors.white} />
-                  )
-                }
-                onPress={() =>
-                  changeUserStatus(
-                    item.id,
-                    item.status === "active" ? "deactive" : "active"
-                  )
-                }
-              />
+              <View flex row gap-10>
+                <Button
+                  style={{ width: 30, height: 30 }}
+                  backgroundColor={
+                    item.status === "active"
+                      ? Colors.$iconDanger
+                      : Colors.primary
+                  }
+                  iconSource={() =>
+                    item.status === "deactive" ? (
+                      <CheckCircleIcon color={Colors.white} />
+                    ) : (
+                      <StopCircleIcon color={Colors.white} />
+                    )
+                  }
+                  onPress={() =>
+                    changeUserStatus(
+                      item.id,
+                      item.status === "active" ? "deactive" : "active"
+                    )
+                  }
+                />
+                {role === "owner" && (
+                  <Button
+                    style={{ width: 30, height: 30 }}
+                    backgroundColor={Colors.$iconDanger}
+                    iconSource={() => (
+                      <TrashIcon width={20} color={Colors.white} />
+                    )}
+                    onPress={() => handleRemoveOwner(item)}
+                  />
+                )}
+              </View>
             </View>
           </View>
         ))}
