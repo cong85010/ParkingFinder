@@ -8,14 +8,8 @@ import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 import { getFirestore } from "firebase/firestore";
 
 // Your web app's Firebase configuration
+// Update KEY
 const firebaseConfig = {
-  apiKey: "AIzaSyDt2BjsZeWjLbn3gKkimhyElmEV8ti85KM",
-  authDomain: "parking-near-me-55381.firebaseapp.com",
-  projectId: "parking-near-me-55381",
-  storageBucket: "parking-near-me-55381.appspot.com",
-  messagingSenderId: "338228096556",
-  appId: "1:338228096556:web:492205a37066509323eb89",
-  databaseURL: 'https://parking-near-me-55381-default-rtdb.asia-southeast1.firebasedatabase.app'
 };
 
 // Initialize Firebase
