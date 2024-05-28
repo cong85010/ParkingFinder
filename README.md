@@ -31,7 +31,7 @@ Ratings and Reviews: Read reviews from other users to get an overall insight int
 Notifications: Receive notifications about parking availability, reserve parking spots, and reminders about expiring parking sessions.
 
 "Parking Spot Finder" is the perfect companion for your trips, helping you save time and effort in finding parking. Download the app now to experience its convenience and simplicity!
-## Skills: Firebase · Ant Design · Redux.js · Google Maps · React Native · Tailwind CSS · NoSQL
+## Skills: Firebase · Redux.js · Google Maps · React Native · NoSQL
 
 ## Demo
 <img src="https://github.com/cong85010/ParkingFinder/assets/58084805/1c5c1ba7-980e-4e91-83d1-e271125b5278" width="300" alt="Screenshot 1">
