@@ -33,9 +33,9 @@ Notifications: Receive notifications about parking availability, reserve parking
 "Parking Spot Finder" is the perfect companion for your trips, helping you save time and effort in finding parking. Download the app now to experience its convenience and simplicity!
 
 ## Demo
-![1710383479299](https://github.com/cong85010/ParkingFinder/assets/58084805/1c5c1ba7-980e-4e91-83d1-e271125b5278)
-![1710383448964](https://github.com/cong85010/ParkingFinder/assets/58084805/5a9e562a-5a4b-4484-b824-743c50cb0545)
-![1710383459735](https://github.com/cong85010/ParkingFinder/assets/58084805/957c3617-1ce0-45d7-964b-f50b9d15941e)
+<img src="https://github.com/cong85010/ParkingFinder/assets/58084805/1c5c1ba7-980e-4e91-83d1-e271125b5278" width="300" alt="Screenshot 1">
+<img src="https://github.com/cong85010/ParkingFinder/assets/58084805/5a9e562a-5a4b-4484-b824-743c50cb0545" width="300" alt="Screenshot 2">
+<img src="https://github.com/cong85010/ParkingFinder/assets/58084805/957c3617-1ce0-45d7-964b-f50b9d15941e" width="300" alt="Screenshot 3">
 
 ## Installation
 
